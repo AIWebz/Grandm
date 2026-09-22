@@ -17,6 +17,7 @@ interface AuthState {
   token: string | null;
   user: AppUser | null;
   isBootstrapping: boolean;
+  bootstrapError: string | null;
   bootstrap: () => Promise<void>;
   setSession: (token: string, user: AppUser) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
@@ -30,29 +31,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   user: null,
   isBootstrapping: true,
+  bootstrapError: null,
 
   // Silent guest creation - the app is usable within seconds, no signup screen (docs/ARCHITECTURE.md).
+  // Wrapped in try/catch so an unreachable backend (e.g. the website's API
+  // not deployed yet) surfaces a clear retry state instead of leaving the
+  // splash screen spinning forever - isBootstrapping must always end up
+  // false, whatever happens.
   bootstrap: async () => {
-    const existingToken = await getItem(TOKEN_KEY);
-    if (existingToken) {
-      set({ token: existingToken });
-      try {
-        await get().refreshMe();
-      } catch {
-        // Token invalid/expired - fall through to re-issuing a guest session.
-        set({ token: null, user: null });
+    set({ isBootstrapping: true, bootstrapError: null });
+    try {
+      const existingToken = await getItem(TOKEN_KEY);
+      if (existingToken) {
+        set({ token: existingToken });
+        try {
+          await get().refreshMe();
+        } catch {
+          // Token invalid/expired - fall through to re-issuing a guest session.
+          set({ token: null, user: null });
+        }
       }
+      if (!get().token) {
+        const deviceId = await getOrCreateDeviceId();
+        const res = await apiRequest<{ token: string; user: AppUser }>("/auth/guest", {
+          method: "POST",
+          body: { deviceId },
+          auth: false,
+        });
+        await get().setSession(res.token, res.user);
+      }
+      set({ isBootstrapping: false });
+    } catch (e: any) {
+      set({ isBootstrapping: false, bootstrapError: e?.message ?? "Couldn't reach the server. Check your connection." });
     }
-    if (!get().token) {
-      const deviceId = await getOrCreateDeviceId();
-      const res = await apiRequest<{ token: string; user: AppUser }>("/auth/guest", {
-        method: "POST",
-        body: { deviceId },
-        auth: false,
-      });
-      await get().setSession(res.token, res.user);
-    }
-    set({ isBootstrapping: false });
   },
 
   setSession: async (token, user) => {
