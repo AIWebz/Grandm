@@ -16,8 +16,10 @@ This repo is a monorepo:
 - `docs/` — product/architecture decisions called out explicitly per the
   spec (auth pattern, safety system prompt, provider swap points).
 - `.github/workflows/` — CI (typecheck on every push), a Docker image
-  build+publish to GHCR, and a manual "set up Stripe" workflow, so the
-  one-time setup scripts can run from GitHub instead of your machine.
+  build+publish to GHCR, a manual "set up Stripe" workflow, and a GitHub
+  Pages deploy that publishes the app as a real website on every push to
+  `main`, so the one-time setup scripts (and the site itself) run from
+  GitHub instead of your machine.
 - `docker-compose.yml` + `server/Dockerfile` — runs Ollama and the server
   together with one command, no local Node/Ollama install required.
 
@@ -61,6 +63,27 @@ Stripe key configured at all, the app still runs fully — Grandma+ purchase
 buttons just return a clear "not configured" instead of a broken flow. See
 `docs/ARCHITECTURE.md` §7 for the full Free vs. Grandma+ feature matrix and
 an important compliance note about Stripe vs. native app-store billing.
+
+## Host the app as a website on GitHub Pages
+
+`.github/workflows/deploy-web.yml` exports the mobile app for web
+(`react-native-web` via Metro) and publishes it to GitHub Pages on every
+push to `main` — no separate web app, it's the same screens/nav/chat
+running in a browser. One-time setup:
+1. **Settings → Pages → Source: "GitHub Actions."**
+2. Optional: **Settings → Secrets and variables → Actions → Variables →**
+   add `EXPO_PUBLIC_API_URL` pointing at your real, publicly deployed
+   backend (see "Deploy the backend somewhere real" below) — without it,
+   the site loads but every screen that talks to the server won't have
+   anyone to talk to.
+3. Push to `main`. The site publishes to
+   `https://<owner>.github.io/<repo>/`.
+
+Ads, native in-app-purchase, and voice input have no browser equivalent
+and are intentionally unavailable on the web build (Stripe Checkout still
+handles Grandma+ purchases there); see `docs/ARCHITECTURE.md` §9 for the
+full rundown of what's live vs. gracefully unavailable on web, and why the
+bundler failed before three `.web.ts` files fixed it.
 
 ## Quick start (running things locally instead)
 

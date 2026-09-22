@@ -116,7 +116,33 @@ Per `docs/ARCHITECTURE.md`, these need your own credentials before they're
 | Stripe (real payouts) | dashboard.stripe.com | `server/.env` `STRIPE_*` (see above) |
 | Native App Store/Play Store IAP (optional alternate billing rail) | App Store Connect / Play Console | `server/.env` `APPLE_SHARED_SECRET` / `GOOGLE_SERVICE_ACCOUNT_JSON` |
 
-## 4. Build for the App Store
+## 4. Or skip the app stores: host it as a website on GitHub Pages
+
+The same app also runs as a real website, no App Store review, no EAS
+build, no $99/yr membership — `.github/workflows/deploy-web.yml` handles
+it:
+1. **Settings → Pages → Source: "GitHub Actions"** (one-time repo setting).
+2. Optional but needed for the site to actually work for visitors:
+   **Settings → Secrets and variables → Actions → Variables →** add
+   `EXPO_PUBLIC_API_URL` pointing at your real, public backend (step 1's
+   Docker/Ollama deploy, reachable over HTTPS — `localhost` only works on
+   your own machine).
+3. Push to `main`. The workflow runs `npx expo export --platform web` and
+   publishes it to `https://<owner>.github.io/<repo>/`.
+
+This is genuinely the same codebase, not a second app — chat, tasks,
+recipes, planner, and the drawer nav all work in the browser. Ads, native
+IAP, and voice input have no browser equivalent and are unavailable there
+by design (Stripe Checkout still works fine for Grandma+); see
+`docs/ARCHITECTURE.md` §9 for the full list and the bundling issue that had
+to be fixed to make `expo export --platform web` work at all (short
+version: `react-native-google-mobile-ads` was pulling in real
+react-native internals that don't exist on web — three new `.web.ts` files
+under `mobile/src/` keep it out of the web bundle entirely). Want to build
+it locally instead of waiting on the workflow: `cd mobile && npm run
+build:web` produces the same static site in `mobile/dist/`.
+
+## 5. Build for the App Store
 
 This app uses native modules (`react-native-iap`, `react-native-google-mobile-ads`,
 `expo-speech-recognition`), so it needs a real native build — Expo Go can't
@@ -139,9 +165,9 @@ This produces a real `.ipa`. From there:
 Android is the same idea via `eas build --platform android` and the Google
 Play Console.
 
-## 5. Before you flip real customers on
+## 6. Before you flip real customers on
 
-- [ ] Backend deployed somewhere public, `mobile/.env`'s `EXPO_PUBLIC_API_URL` pointed at it
+- [ ] Backend deployed somewhere public, `mobile/.env`'s `EXPO_PUBLIC_API_URL` pointed at it (and, for the website, the same URL set as the `EXPO_PUBLIC_API_URL` repo **variable** used by `deploy-web.yml`)
 - [ ] `STRIPE_SECRET_KEY` switched from `sk_test_...` to `sk_live_...`, and a production webhook endpoint configured
 - [ ] AdMob real app/ad-unit ids in place (or accept Google's test units serve no revenue)
 - [ ] `JWT_SECRET` changed from the placeholder to a long random value

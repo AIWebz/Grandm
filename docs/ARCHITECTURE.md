@@ -317,7 +317,82 @@ gesture and slide animation could not be exercised in this sandbox (no
 device/simulator here), so give the drawer a try on a real device/simulator
 before considering this final.
 
-## 9. Data model
+## 9. Website: the same app exported as a static site, hosted on GitHub Pages
+
+**Decision: `expo export --platform web` (Metro's react-native-web target),
+deployed via `.github/workflows/deploy-web.yml`**, per explicit direction to
+host the app on GitHub as a website rather than only ship it through app
+stores. This is the same codebase, not a second frontend — every screen,
+the drawer nav, chat, recipes, tasks, and the theme all render in a browser
+via `react-native-web`; no separate web app was written.
+
+**The bundling blocker, and what actually fixed it.** A plain `expo export
+-p web` failed with `Unable to resolve module ../Utilities/Platform from
+.../react-native/Libraries/ReactNative/PaperUIManager.js` — real
+react-native internals were leaking into the web bundle instead of being
+replaced by `react-native-web`. Tracing Metro's actual resolver calls (not
+just reading source) found the true cause: `react-native-google-mobile-ads`'s
+banner-ad native component deep-imports
+`react-native/Libraries/Utilities/codegenNativeComponent` directly (a bare
+path into real react-native, not the `react-native-web`-aliased package
+specifier), which cascades into `UIManager` → `PaperUIManager` →
+`Utilities/Platform`, none of which have a generic/web build because
+they're never meant to run outside native. AdMob has no browser SDK at all,
+so the fix isn't a workaround, it's the correct outcome: three new
+`.web.ts` files —
+`mobile/src/utils/nativeAds.web.ts`, `mobile/src/hooks/useIAP.web.ts`,
+`mobile/src/hooks/useVoiceInput.web.ts` — shadow their native counterparts
+(Metro automatically prefers a `.web.ts` file over the plain `.ts` one when
+bundling for web) and never import `react-native-google-mobile-ads`,
+`react-native-iap`, or `expo-speech-recognition` at all on web, matching
+the same "unavailable, not crashing" contract those hooks already use for
+Expo Go. `mobile/metro.config.js` also had to explicitly add `"web"` to
+`resolver.platforms` — `getDefaultConfig()` only lists `["ios", "android"]`
+by default on Expo SDK 51, so `.web.tsx` files elsewhere in the dependency
+tree (e.g. react-native-screens' own web components) weren't being
+recognized as the web variant without it.
+
+**Feature reality on web** (per the "no crash, no silent gap" pattern used
+everywhere else in this app):
+- Chat, tasks, recipes, planner, grocery lists, the drawer nav, the mascot
+  — all fully functional, calling the same backend REST API as the mobile
+  app via `EXPO_PUBLIC_API_URL`.
+- Ads (`react-native-google-mobile-ads`) and native IAP
+  (`react-native-iap`) — unavailable on web by design (no browser SDK for
+  either); Stripe Checkout, already the primary billing rail (§7), is
+  unaffected and is the only purchase path on web.
+- Voice input (`expo-speech-recognition`) — unavailable on web; the mic
+  button hides itself, same as it does in Expo Go.
+- Push notifications — `registerForPushNotifications()` returns `null` on
+  web; Expo's push service needs a VAPID key + service worker for web push
+  that isn't configured here, unlike iOS/Android which work out of the box.
+- `expo-secure-store` was already `Platform.OS === "web"`-gated to
+  `AsyncStorage` before this work (`mobile/src/api/secureStorage.ts`) —
+  SecureStore has no web keychain equivalent.
+
+**GitHub Pages base path.** A project Pages site serves from
+`https://<user>.github.io/<repo>/`, not the domain root, so every
+absolute-rooted asset URL the export emits (`/_expo/static/js/...`) needs
+that `/<repo>` prefix or it 404s. `mobile/app.config.js` reads
+`experiments.baseUrl` from `EXPO_PUBLIC_BASE_PATH`; the workflow sets it to
+`/${{ github.event.repository.name }}` automatically at build time, so this
+needs no manual edit even if the repo is renamed or forked.
+
+**What the workflow does and doesn't do.** `deploy-web.yml` builds
+`mobile/` with `npx expo export --platform web` and publishes `mobile/dist`
+via `actions/upload-pages-artifact` + `actions/deploy-pages` on every push
+to `main` (also `workflow_dispatch`-able). It reads `EXPO_PUBLIC_API_URL`
+from a repository **variable** (Settings → Secrets and variables → Actions
+→ Variables), not a secret, since it's a public URL baked into a public
+static bundle — never put a real secret there. GitHub Pages only serves
+static files: the site is genuinely useless without a real, publicly
+reachable backend behind that URL (§ "Deploy the backend somewhere real" in
+`GETTING_STARTED.md` — the existing `docker-publish.yml` image is exactly
+that backend). Enabling Pages itself is a one-time repo setting this
+workflow can't flip on its own: **Settings → Pages → Source: "GitHub
+Actions"**.
+
+## 10. Data model
 
 See `server/prisma/schema.prisma`. One `User` row per person (guest or
 full), with `Task`, `Reminder`, `Recipe`, `FamilyCookbookRecipe`,

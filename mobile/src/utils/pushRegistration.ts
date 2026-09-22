@@ -7,6 +7,10 @@ import { Platform } from "react-native";
  * token, which the server's `expo` push adapter can send to directly.
  */
 export async function registerForPushNotifications(): Promise<string | null> {
+  // Web push needs a VAPID key + service worker Expo doesn't set up by
+  // default (unlike iOS/Android, which just work via Expo's push service).
+  if (Platform.OS === "web") return null;
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
   if (existingStatus !== "granted") {

@@ -62,5 +62,12 @@ module.exports = {
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000",
     },
+    // GitHub Pages project sites serve from https://<user>.github.io/<repo>/,
+    // not the domain root, so every asset URL the web export emits needs
+    // this prefix. Empty by default (root-hosted); the GitHub Pages deploy
+    // workflow passes EXPO_PUBLIC_BASE_PATH=/<repo> at build time.
+    experiments: {
+      baseUrl: process.env.EXPO_PUBLIC_BASE_PATH || "",
+    },
   },
 };

@@ -1,0 +1,54 @@
+name: Deploy web build to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      # GitHub Pages project sites serve from /<repo>/, not the domain root,
+      # so every asset URL the export emits needs that prefix baked in.
+      # EXPO_PUBLIC_API_URL should point at your real, publicly deployed
+      # backend (see GETTING_STARTED.md) - it defaults to localhost, which
+      # only works on your own machine, never for site visitors.
+      - name: Export static web build
+        env:
+          EXPO_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+        run: npx expo export --platform web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: mobile/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
