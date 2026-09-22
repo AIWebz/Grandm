@@ -39,4 +39,12 @@ export const env = {
   adsProvider: process.env.ADS_PROVIDER ?? "admob",
   admobAppIdIos: process.env.ADMOB_APP_ID_IOS ?? "",
   admobAppIdAndroid: process.env.ADMOB_APP_ID_ANDROID ?? "",
+  admobBannerAdUnitIdIos: process.env.ADMOB_BANNER_AD_UNIT_ID_IOS ?? "",
+  admobBannerAdUnitIdAndroid: process.env.ADMOB_BANNER_AD_UNIT_ID_ANDROID ?? "",
+  admobInterstitialAdUnitIdIos: process.env.ADMOB_INTERSTITIAL_AD_UNIT_ID_IOS ?? "",
+  admobInterstitialAdUnitIdAndroid: process.env.ADMOB_INTERSTITIAL_AD_UNIT_ID_ANDROID ?? "",
+  admobRewardedAdUnitIdIos: process.env.ADMOB_REWARDED_AD_UNIT_ID_IOS ?? "",
+  admobRewardedAdUnitIdAndroid: process.env.ADMOB_REWARDED_AD_UNIT_ID_ANDROID ?? "",
+
+  rewardedUnlockDailyCap: Number(process.env.REWARDED_UNLOCK_DAILY_CAP ?? 3),
 };

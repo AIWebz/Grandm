@@ -47,6 +47,7 @@ model User {
   subscription          Subscription?
   aiUsage                AiUsage[]
   notificationLogs       NotificationLog[]
+  rewardedUnlocks        RewardedUnlock[]
 }
 
 model Task {
@@ -201,6 +202,16 @@ model AiUsage {
 }
 
 model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+
+  @@unique([userId, day])
+}
+
+model RewardedUnlock {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

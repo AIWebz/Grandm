@@ -7,6 +7,8 @@ export interface UsageStatus {
   remaining: number;
   atCap: boolean;
   unlimited: boolean;
+  rewardedUnlocksUsed: number;
+  rewardedUnlocksRemaining: number;
 }
 
 export function useChatUsage(refreshKey: number) {

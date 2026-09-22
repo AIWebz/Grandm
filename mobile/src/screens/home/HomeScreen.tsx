@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { useHome } from "../../hooks/useHome";
 import { useTasks } from "../../hooks/useTasks";
 import { useAuthStore } from "../../state/authStore";
+import { useInterstitialAd } from "../../hooks/useInterstitialAd";
+import { consumeChatExitInterstitialTrigger, markInterstitialShown } from "../../utils/interstitialSession";
 import { GrandmaAvatar } from "../../components/GrandmaAvatar";
 import { Card } from "../../components/Card";
 import { ProgressRing } from "../../components/ProgressRing";
@@ -27,13 +29,28 @@ export function HomeScreen() {
   const { data, loading, error, isOffline, refresh } = useHome();
   const { toggleComplete } = useTasks({ date: new Date().toISOString().slice(0, 10) });
   const preferredName = useAuthStore((s) => s.user?.preferredName);
+  const { show: showInterstitial, ready: interstitialReady } = useInterstitialAd();
+
+  // Occasional interstitial right after leaving an active chat, never mid-conversation (Section 15).
+  useFocusEffect(
+    useCallback(() => {
+      if (consumeChatExitInterstitialTrigger() && interstitialReady) {
+        showInterstitial();
+        markInterstitialShown();
+      }
+    }, [interstitialReady, showInterstitial])
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <OfflineBanner />
       <ScrollView contentContainerStyle={styles.content} refreshControl={undefined}>
         <View style={styles.header}>
-          <GrandmaAvatar size={48} animated />
+          <GrandmaAvatar
+            size={48}
+            animated
+            mood={data && data.progress.total > 0 && data.progress.completed === data.progress.total ? "celebrating" : "neutral"}
+          />
           <View style={{ marginLeft: spacing.sm, flex: 1 }}>
             <Text style={typography.hero} accessibilityRole="header">
               {timeOfDayGreeting()}, {preferredName ?? data?.preferredName ?? "there"} ❤️

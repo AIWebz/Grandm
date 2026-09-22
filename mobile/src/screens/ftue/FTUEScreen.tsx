@@ -41,7 +41,7 @@ export function FTUEScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <GrandmaAvatar size={88} animated />
+        <GrandmaAvatar size={88} animated mood="happy" />
         <Text style={[typography.hero, styles.headline]}>Hi, {name} ❤️</Text>
         <Text style={[typography.subtitle, styles.subtitle]}>What can Grandma help you with today?</Text>
         <View style={styles.buttons}>

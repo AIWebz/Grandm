@@ -14,7 +14,7 @@ interface Props {
 export function EmptyState({ message, actionLabel, onAction }: Props) {
   return (
     <View style={styles.container} accessible accessibilityRole="text">
-      <GrandmaAvatar size={64} />
+      <GrandmaAvatar size={64} mood="thinking" />
       <Text style={[typography.body, styles.message]}>{message}</Text>
       {actionLabel && onAction && (
         <PrimaryButton label={actionLabel} onPress={onAction} style={{ marginTop: spacing.md }} />

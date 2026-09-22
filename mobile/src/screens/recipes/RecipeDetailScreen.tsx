@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecipesStackParamList } from "../../navigation/types";
 import { useRecipeDetail } from "../../hooks/useRecipes";
 import { useScaledIngredients, useSaveRecipe, useRecipeToGroceryList, useRecipeQuestion } from "../../hooks/useRecipeActions";
+import { useInterstitialAd } from "../../hooks/useInterstitialAd";
 import { Card } from "../../components/Card";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { colors, typography, spacing, radii, MIN_TOUCH_TARGET } from "../../theme/theme";
@@ -18,6 +19,7 @@ export function RecipeDetailScreen({ route }: Props) {
   const [servings, setServings] = useState<number | null>(null);
   const { ingredients: scaledIngredients, scale } = useScaledIngredients(recipeId);
   const { save, saving } = useSaveRecipe();
+  const { show: showInterstitial } = useInterstitialAd();
   const { push: pushGroceryList, adding } = useRecipeToGroceryList();
   const [groceryDone, setGroceryDone] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -62,7 +64,12 @@ export function RecipeDetailScreen({ route }: Props) {
           <PrimaryButton
             label={saved ? "Saved ❤️" : "Save"}
             variant="secondary"
-            onPress={async () => setSaved(await save(recipe.id))}
+            onPress={async () => {
+              const didSave = await save(recipe.id);
+              setSaved(didSave);
+              // Natural transition point for an occasional interstitial (Section 15) - never mid-chat.
+              if (didSave) showInterstitial();
+            }}
             loading={saving}
             style={{ flex: 1, marginRight: spacing.sm }}
           />

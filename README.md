@@ -22,7 +22,9 @@ behind a swappable adapter in this build (none of this project's own logic
 is a placeholder — every screen and API route does real work against a real
 database — but a few external accounts, listed there, aren't provisionable
 in this environment: Apple/Google sign-in credentials, an APNs/FCM project,
-App Store/Play Console apps, and an ad network account).
+and App Store/Play Console apps). The AI engine (local via Ollama, no
+account needed) and Google AdMob (real SDK, Google's public test ad units
+by default) both work out of the box with zero third-party signup.
 
 ## Quick start
 

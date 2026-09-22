@@ -139,11 +139,64 @@ Cloud project, or ad network account is available here):
   `APPLE_SHARED_SECRET` / `GOOGLE_SERVICE_ACCOUNT` are set; without them the
   validator returns a clear `NOT_CONFIGURED` error rather than pretending
   to succeed.
-- Ad SDK (AdMob/etc.): `AdSlot` renders the real placement in the real
-  position with the real frequency rules, backed by a test ad unit ID by
-  default; swap in a production ad unit ID via env var.
 
-## 5. Data model
+## 5. Ads: real Google AdMob SDK, live on Google's test units by default
+
+`mobile/src/components/AdSlot.tsx`, `useInterstitialAd.ts`, and
+`useRewardedAd.ts` are built on the real `react-native-google-mobile-ads`
+SDK (`BannerAd`, `InterstitialAd`, `RewardedAd`) — not a placeholder view.
+`server/src/routes/config.ts` hands the client an app id and a banner/
+interstitial/rewarded ad unit id per platform; every id defaults to
+Google's public AdMob **test** ids (the same ones Google's own docs use),
+so real ads render, in test mode, with zero AdMob account needed. Setting
+`ADMOB_APP_ID_*` / `ADMOB_*_AD_UNIT_ID_*` in `server/.env` switches every
+placement to a real, revenue-earning account with no client rebuild — only
+`mobile/app.config.js` (which reads `ADMOB_APP_ID_IOS`/`ADMOB_APP_ID_ANDROID`
+at build time for the native SDK's required app-id manifest entry) needs
+those two set before a real build.
+
+Placement rules from Section 15, enforced in code rather than left as a
+guideline:
+- **Banner** (`AdSlot`): only on `recipes_list`/`tasks_list`/`grocery_list`
+  (server-configured, not hardcoded per-screen), and never at all for
+  Grandma+ (`useSubscriptionStatus` gate).
+- **Interstitial**: only at two natural transitions — right after leaving
+  an active chat for Home, and right after saving a recipe — and capped to
+  once per app session (`utils/interstitialSession.ts`) so "occasional"
+  actually means occasional. Never triggered from inside `ChatScreen` itself.
+- **Rewarded**: surfaced only once the free daily chat cap is hit, as
+  "📺 Watch an ad for one more chat" in `ChatScreen`. `POST /chat/usage/reward`
+  raises that day's effective cap by one, itself capped at
+  `REWARDED_UNLOCK_DAILY_CAP` (default 3/day) so it can't become unlimited
+  free usage.
+- The native ads module needs a custom dev client / EAS build (Expo Go has
+  no third-party native modules); `AdSlot` falls back to a labeled
+  placeholder and the ad hooks simply report "not ready" rather than
+  crashing when it isn't present — the same defensive pattern used for
+  `react-native-iap` and `expo-speech-recognition`.
+
+**Known simplification:** the rewarded-unlock endpoint trusts the client's
+report that the SDK's `onEarnedReward` fired, rather than validating via
+AdMob's server-side verification (SSV) callback, which needs a stable
+public HTTPS URL registered in the AdMob console. The daily cap bounds the
+downside to a handful of free extra chats/day even if that trust were
+abused — wiring real SSV is a small, well-documented follow-up once the
+app has a production URL.
+
+## 6. The Grandma mascot
+
+`mobile/src/components/GrandmaAvatar.tsx` is one consistent hand-drawn SVG
+character (round glasses, a soft hair bun, a coral shawl) rather than a
+generic icon or a photorealistic face, per Section 13's "warm rather than
+cartoonishly old, never photorealistic or uncanny." She's reused everywhere
+the spec calls for her: the home greeting, the chat header, every empty
+state, and onboarding/FTUE. A small `mood` prop (`neutral` / `happy` /
+`thinking` / `celebrating`) swaps her eyebrows and mouth so she reacts to
+context — e.g. she celebrates on Home when every task for the day is
+checked off — without becoming a distracting animated performance; the
+only continuous motion is the existing subtle blink.
+
+## 7. Data model
 
 See `server/prisma/schema.prisma`. One `User` row per person (guest or
 full), with `Task`, `Reminder`, `Recipe`, `FamilyCookbookRecipe`,

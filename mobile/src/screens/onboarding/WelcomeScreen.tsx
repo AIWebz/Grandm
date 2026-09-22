@@ -13,7 +13,7 @@ export function WelcomeScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <GrandmaAvatar size={120} animated />
+        <GrandmaAvatar size={120} animated mood="happy" />
         <Text style={[typography.hero, styles.headline]}>Meet Grandma AI</Text>
         <Text style={[typography.body, styles.subtitle]}>
           A little help, a little wisdom, and a whole lot of care.

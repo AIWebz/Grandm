@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { runChatTurn } from "../services/ai/chatService";
 import { answerRecipeQuestion } from "../services/ai/recipeService";
-import { getUsageStatus, incrementUsage } from "../utils/usageCap";
+import { getUsageStatus, incrementUsage, grantRewardedUnlock } from "../utils/usageCap";
 import { prisma } from "../db/prisma";
 import { isAiConfigured } from "../services/ai/provider";
 
@@ -12,6 +12,15 @@ export const chatRouter = Router();
 chatRouter.get("/usage", requireAuth, async (req: AuthedRequest, res) => {
   const status = await getUsageStatus(req.userId!);
   res.json(status);
+});
+
+/** Called after a rewarded ad's onEarnedReward fires (Section 15 "rewarded ads for extra features"). */
+chatRouter.post("/usage/reward", requireAuth, async (req: AuthedRequest, res) => {
+  const { granted, status } = await grantRewardedUnlock(req.userId!);
+  if (!granted) {
+    return res.status(429).json({ error: "REWARD_CAP_REACHED", message: "You've used today's bonus chats from ads.", status });
+  }
+  res.json({ granted, status });
 });
 
 chatRouter.get("/history", requireAuth, async (req: AuthedRequest, res) => {

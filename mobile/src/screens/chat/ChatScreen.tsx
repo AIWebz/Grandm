@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useRoute, useFocusEffect } from "@react-navigation/native";
 import * as Speech from "expo-speech";
 import { MainTabParamList } from "../../navigation/types";
 import { streamChatMessage, ToolInvocation } from "../../api/chatStream";
@@ -18,6 +18,8 @@ import { GrandmaAvatar } from "../../components/GrandmaAvatar";
 import { ToolInvocationCard } from "../../components/ToolInvocationCard";
 import { useChatUsage } from "../../hooks/useChatUsage";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
+import { useRewardedAd } from "../../hooks/useRewardedAd";
+import { markChatExitPending } from "../../utils/interstitialSession";
 import { colors, typography, spacing, radii, MIN_TOUCH_TARGET } from "../../theme/theme";
 
 interface Message {
@@ -49,6 +51,8 @@ export function ChatScreen() {
   const { isListening, available: voiceAvailable, start: startListening, stop: stopListening } = useVoiceInput((text) =>
     setInput((prev) => (prev ? `${prev} ${text}` : text))
   );
+  const { showForReward: showRewardedAd, ready: rewardedAdReady } = useRewardedAd();
+  const [watchingAd, setWatchingAd] = useState(false);
 
   useEffect(() => {
     const prefilled = route.params?.prefilledIntent;
@@ -57,6 +61,28 @@ export function ChatScreen() {
   }, [route.params?.prefilledIntent]);
 
   useEffect(() => () => cancelRef.current?.(), []);
+
+  // Interstitials only ever run at natural transitions, never mid-chat (Section 15) -
+  // this just marks "we just left an active conversation" for Home to act on.
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => markChatExitPending();
+    }, [])
+  );
+
+  const watchAdForExtraChat = () => {
+    setWatchingAd(true);
+    showRewardedAd(
+      () => {
+        setWatchingAd(false);
+        setUsageRefreshKey((k) => k + 1);
+      },
+      (message) => {
+        setWatchingAd(false);
+        setMessages((prev) => [...prev, { id: nextId(), role: "assistant", text: message, isError: true }]);
+      }
+    );
+  };
 
   const history = () => messages.filter((m) => !m.streaming).map((m) => ({ role: m.role, content: m.text }));
 
@@ -122,9 +148,22 @@ export function ChatScreen() {
       </View>
 
       {usage && !usage.unlimited && (
-        <Text style={styles.usageText} accessibilityLabel={`${usage.remaining} of ${usage.cap} free Grandma chats left today`}>
-          {usage.remaining} of {usage.cap} free chats left today
-        </Text>
+        <View style={styles.usageRow}>
+          <Text style={styles.usageText} accessibilityLabel={`${usage.remaining} of ${usage.cap} free Grandma chats left today`}>
+            {usage.remaining} of {usage.cap} free chats left today
+          </Text>
+          {usage.atCap && rewardedAdReady && usage.rewardedUnlocksRemaining > 0 && (
+            <Pressable
+              onPress={watchAdForExtraChat}
+              disabled={watchingAd}
+              style={styles.watchAdButton}
+              accessibilityRole="button"
+              accessibilityLabel="Watch an ad for one more chat today"
+            >
+              <Text style={styles.watchAdText}>{watchingAd ? "Loading ad…" : "📺 Watch an ad for one more chat"}</Text>
+            </Pressable>
+          )}
+        </View>
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -199,7 +238,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.cream },
   header: { flexDirection: "row", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   ttsToggle: { marginLeft: "auto", minHeight: MIN_TOUCH_TARGET, justifyContent: "center", paddingHorizontal: spacing.sm },
-  usageText: { textAlign: "center", color: colors.brownMuted, fontSize: 12, paddingVertical: 4 },
+  usageRow: { alignItems: "center", paddingVertical: 4 },
+  usageText: { textAlign: "center", color: colors.brownMuted, fontSize: 12 },
+  watchAdButton: { marginTop: 4, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: "#FDEEEB" },
+  watchAdText: { color: colors.coralDark, fontSize: 12, fontWeight: "700" },
   messages: { padding: spacing.md },
   bubbleRow: { marginBottom: spacing.sm, maxWidth: "85%" },
   bubbleRowUser: { alignSelf: "flex-end" },
