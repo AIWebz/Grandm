@@ -30,16 +30,16 @@ by default) both work out of the box with zero third-party signup.
 
 ### AI engine (Ollama, no API key)
 The app defaults to a local model via [Ollama](https://ollama.com) — no
-signup, no API key, nothing sent to a third party. Install it, then pull a
-tool-calling model and a vision model (for handwriting digitization) and
-leave the app running:
+signup, no API key, nothing sent to a third party. One command handles
+installing Ollama (if needed), starting it, and pulling the tool-calling
+and vision models the app uses:
 ```
-ollama pull llama3.1
-ollama pull llava
+cd server
+npm run ollama:setup
 ```
-Prefer a hosted model (higher quality, costs money)? Set
-`AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `server/.env` instead —
-see `docs/ARCHITECTURE.md` §4 for the full tradeoff.
+Prefer a hosted model (higher quality, costs money, no local hardware
+needed)? Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in
+`server/.env` instead — see `docs/ARCHITECTURE.md` §4 for the full tradeoff.
 
 ### Payments (Stripe, Grandma+ at $14.99/mo)
 ```
@@ -58,6 +58,7 @@ an important compliance note about Stripe vs. native app-store billing.
 cd server
 cp .env.example .env   # defaults to the local Ollama setup above
 npm install
+npm run ollama:setup   # see "AI engine" above - skip if already done
 npx prisma migrate dev
 npm run dev
 ```

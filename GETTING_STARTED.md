@@ -24,15 +24,26 @@ and the full Free vs. Grandma+ feature matrix.
 cd server
 cp .env.example .env
 npm install
-ollama pull llama3.1   # tool-calling chat model
-ollama pull llava       # vision model, for Family Cookbook handwriting OCR
+npm run ollama:setup   # installs Ollama if needed, starts it, pulls the 2 models the app uses
 npx prisma migrate deploy
 npm run dev
 ```
 
+`npm run ollama:setup` (`server/scripts/setup-ollama.sh`) handles the whole
+local AI engine for you: installs Ollama if it isn't already there (Linux
+via its official install script, macOS via Homebrew), makes sure the
+daemon is running, then pulls `llama3.1` (chat + tool-calling) and `llava`
+(handwriting photo OCR for the Family Cookbook). It's safe to re-run any
+time. On Windows, it'll tell you to grab the installer from
+[ollama.com/download](https://ollama.com/download) first, then re-run the
+script from Git Bash/WSL to pull the models.
+
 The server listens on `:4000`. Hit `curl localhost:4000/health` to confirm
-it's up. Leave `AI_PROVIDER=ollama` (the default) for a free local engine,
-or switch to `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` for hosted Claude.
+it's up, then send a chat message from the app to confirm you get a real
+reply. Leave `AI_PROVIDER=ollama` (the default) for this free local engine,
+or switch to `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` for hosted Claude
+instead (higher quality, costs money per use, no local hardware needed —
+worth it once you're serving real production traffic rather than testing).
 
 ### Connect Stripe (so you actually get paid for Grandma+)
 ```bash
