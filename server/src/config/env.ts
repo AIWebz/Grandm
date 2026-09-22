@@ -1,0 +1,38 @@
+import "dotenv/config";
+
+function required(name: string, fallback?: string): string {
+  const v = process.env[name] ?? fallback;
+  if (v === undefined) throw new Error(`Missing required env var: ${name}`);
+  return v;
+}
+
+export const env = {
+  port: Number(process.env.PORT ?? 4000),
+  databaseUrl: required("DATABASE_URL", "file:./dev.db"),
+  jwtSecret: required("JWT_SECRET", "dev-secret-change-me"),
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
+
+  aiProvider: process.env.AI_PROVIDER ?? "anthropic",
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
+  anthropicVisionModel: process.env.ANTHROPIC_VISION_MODEL ?? "claude-sonnet-5",
+
+  freeDailyChatCap: Number(process.env.FREE_DAILY_CHAT_CAP ?? 15),
+
+  appleClientId: process.env.APPLE_CLIENT_ID ?? "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+
+  pushProvider: process.env.PUSH_PROVIDER ?? "expo",
+  fcmServerKey: process.env.FCM_SERVER_KEY ?? "",
+  apnsKeyId: process.env.APNS_KEY_ID ?? "",
+  apnsTeamId: process.env.APNS_TEAM_ID ?? "",
+
+  appleSharedSecret: process.env.APPLE_SHARED_SECRET ?? "",
+  googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
+  grandmaPlusMonthlyProductId: process.env.GRANDMA_PLUS_MONTHLY_PRODUCT_ID ?? "grandma_plus_monthly",
+  grandmaPlusAnnualProductId: process.env.GRANDMA_PLUS_ANNUAL_PRODUCT_ID ?? "grandma_plus_annual",
+
+  adsProvider: process.env.ADS_PROVIDER ?? "admob",
+  admobAppIdIos: process.env.ADMOB_APP_ID_IOS ?? "",
+  admobAppIdAndroid: process.env.ADMOB_APP_ID_ANDROID ?? "",
+};

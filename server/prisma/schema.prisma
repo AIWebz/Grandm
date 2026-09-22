@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum type, so enum-like fields are plain strings
+// validated at the API boundary with zod (see src/routes/*.ts) and typed
+// with string-literal unions in src/types/enums.ts.
+//
+// PersonalityStyle: WARM | FUNNY | CALM | PRACTICAL
+// Interest: COOKING | CHORES | PLANNING | GROCERIES | REMINDERS | ENCOURAGEMENT | EVERYTHING
+// SubscriptionTier: FREE | PLUS
+// TaskCategory: CLEANING | LAUNDRY | KITCHEN | YARD | SHOPPING | PETS | HOUSEHOLD | OTHER
+// RecurrenceRule: NONE | DAILY | WEEKLY
+// ChatRole: USER | ASSISTANT
+// NotificationFrequency: OFF | LOW | NORMAL
+
+model User {
+  id                    String    @id @default(cuid())
+  deviceId              String?   @unique
+  email                 String?   @unique
+  passwordHash          String?
+  appleSub              String?   @unique
+  googleSub             String?   @unique
+  isGuest               Boolean   @default(true)
+  preferredName         String?
+  interests             String    @default("[]") // JSON array of Interest
+  personalityStyle      String    @default("WARM")
+  memoryOptIn           Boolean   @default(false)
+  onboardingCompleted   Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  tasks                 Task[]
+  reminders             Reminder[]
+  recipes               Recipe[]
+  cookbookRecipes       FamilyCookbookRecipe[]
+  groceryLists          GroceryList[]
+  scheduleEvents        ScheduleEvent[]
+  memoryFacts           MemoryFact[]
+  chatMessages          ChatMessage[]
+  notificationPref      NotificationPreference?
+  subscription          Subscription?
+  aiUsage                AiUsage[]
+  notificationLogs       NotificationLog[]
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  category      String    @default("OTHER")
+  notes         String?
+  dueDate       DateTime?
+  isFixed       Boolean   @default(false)
+  recurrence    String    @default("NONE")
+  completed     Boolean   @default(false)
+  completedAt   DateTime?
+  source        String    @default("user") // "user" | "grandma"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Reminder {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  remindAt    DateTime
+  fired       Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model Recipe {
+  id              String   @id @default(cuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  category        String
+  imageUrl        String?
+  servings        Int      @default(4)
+  prepMinutes     Int      @default(10)
+  cookMinutes     Int      @default(20)
+  difficulty      String   @default("easy")
+  ingredients     String   // JSON [{name, quantity, unit}]
+  steps           String   // JSON [{text, tip?}]
+  substitutions   String   @default("[]")
+  dietaryTags     String   @default("[]")
+  isGenerated     Boolean  @default(false)
+  savedByUsers    String   @default("[]")
+  createdAt       DateTime @default(now())
+}
+
+model FamilyCookbookRecipe {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  relatedPerson       String?
+  memoryStory         String?
+  photoUrl            String?
+  originalPhotoUrl    String?
+  ingredients         String   @default("[]")
+  steps               String   @default("[]")
+  transcriptionConfidence Float?
+  needsReview         Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model GroceryList {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String   @default("Grocery List")
+  createdAt   DateTime @default(now())
+  items       GroceryItem[]
+}
+
+model GroceryItem {
+  id            String   @id @default(cuid())
+  groceryListId String
+  groceryList   GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  name          String
+  quantity      String?
+  unit          String?
+  storeCategory String   @default("other")
+  checked       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model ScheduleEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  startTime   DateTime
+  endTime     DateTime?
+  isFixed     Boolean  @default(false)
+  linkedTaskId String?
+  createdAt   DateTime @default(now())
+}
+
+model MemoryFact {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    String   // favorite_food | disliked_food | dietary_restriction | favorite_recipe | routine | skill_level | schedule | other
+  fact        String
+  createdAt   DateTime @default(now())
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String
+  content     String
+  toolInvocations String @default("[]")
+  createdAt   DateTime @default(now())
+}
+
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  frequency         String   @default("NORMAL")
+  taskReminders     Boolean  @default(true)
+  mealTimePrompts   Boolean  @default(true)
+  encouragement     Boolean  @default(true)
+  pushToken         String?
+  quietHoursStart   String?  // "22:00"
+  quietHoursEnd     String?  // "08:00"
+}
+
+model Subscription {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier          String   @default("FREE")
+  platform      String?  // "ios" | "android"
+  originalTransactionId String?
+  expiresAt     DateTime?
+  autoRenew     Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+
+  @@unique([userId, day])
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+
+  @@unique([userId, day])
+}
