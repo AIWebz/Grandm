@@ -13,7 +13,7 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   HomeTab: undefined;
-  GrandmaTab: { prefilledIntent?: string } | undefined;
+  GrandmaTab: { prefilledIntent?: string; resetAt?: number } | undefined;
   RecipesTab: undefined;
   TasksTab: undefined;
   ProfileTab: undefined;

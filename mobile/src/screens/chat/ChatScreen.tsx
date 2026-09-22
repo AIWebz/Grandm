@@ -14,7 +14,6 @@ import { RouteProp, useRoute, useFocusEffect } from "@react-navigation/native";
 import * as Speech from "expo-speech";
 import { MainTabParamList } from "../../navigation/types";
 import { streamChatMessage, ToolInvocation } from "../../api/chatStream";
-import { GrandmaAvatar } from "../../components/GrandmaAvatar";
 import { ToolInvocationCard } from "../../components/ToolInvocationCard";
 import { useChatUsage } from "../../hooks/useChatUsage";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
@@ -59,6 +58,17 @@ export function ChatScreen() {
     if (prefilled) send(prefilled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.prefilledIntent]);
+
+  // "New chat" (drawer button / header icon) - clears the visible thread client-side.
+  // The daily usage cap is per-day server-side, not per-conversation, so it isn't reset here.
+  useEffect(() => {
+    if (!route.params?.resetAt) return;
+    cancelRef.current?.();
+    setSending(false);
+    setInput("");
+    setMessages([{ id: nextId(), role: "assistant", text: "Hi sweetheart, what can I help you with today?" }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.resetAt]);
 
   useEffect(() => () => cancelRef.current?.(), []);
 
@@ -132,10 +142,15 @@ export function ChatScreen() {
   }, [messages]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <GrandmaAvatar size={36} />
-        <Text style={[typography.subtitle, { marginLeft: spacing.sm }]}>Grandma</Text>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+      <View style={styles.utilityRow}>
+        <View style={{ flex: 1 }}>
+          {usage && !usage.unlimited && (
+            <Text style={styles.usageText} accessibilityLabel={`${usage.remaining} of ${usage.cap} free Grandma chats left today`}>
+              {usage.remaining} of {usage.cap} free chats left today
+            </Text>
+          )}
+        </View>
         <Pressable
           onPress={() => setTtsEnabled((v) => !v)}
           style={styles.ttsToggle}
@@ -143,27 +158,20 @@ export function ChatScreen() {
           accessibilityState={{ checked: ttsEnabled }}
           accessibilityLabel="Read replies aloud"
         >
-          <Text style={typography.caption}>{ttsEnabled ? "🔊 Voice on" : "🔈 Voice off"}</Text>
+          <Text style={typography.caption}>{ttsEnabled ? "🔊" : "🔈"}</Text>
         </Pressable>
       </View>
 
-      {usage && !usage.unlimited && (
-        <View style={styles.usageRow}>
-          <Text style={styles.usageText} accessibilityLabel={`${usage.remaining} of ${usage.cap} free Grandma chats left today`}>
-            {usage.remaining} of {usage.cap} free chats left today
-          </Text>
-          {usage.atCap && rewardedAdReady && usage.rewardedUnlocksRemaining > 0 && (
-            <Pressable
-              onPress={watchAdForExtraChat}
-              disabled={watchingAd}
-              style={styles.watchAdButton}
-              accessibilityRole="button"
-              accessibilityLabel="Watch an ad for one more chat today"
-            >
-              <Text style={styles.watchAdText}>{watchingAd ? "Loading ad…" : "📺 Watch an ad for one more chat"}</Text>
-            </Pressable>
-          )}
-        </View>
+      {usage?.atCap && rewardedAdReady && usage.rewardedUnlocksRemaining > 0 && (
+        <Pressable
+          onPress={watchAdForExtraChat}
+          disabled={watchingAd}
+          style={styles.watchAdButton}
+          accessibilityRole="button"
+          accessibilityLabel="Watch an ad for one more chat today"
+        >
+          <Text style={styles.watchAdText}>{watchingAd ? "Loading ad…" : "📺 Watch an ad for one more chat"}</Text>
+        </Pressable>
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -236,11 +244,10 @@ export function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.cream },
-  header: { flexDirection: "row", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  ttsToggle: { marginLeft: "auto", minHeight: MIN_TOUCH_TARGET, justifyContent: "center", paddingHorizontal: spacing.sm },
-  usageRow: { alignItems: "center", paddingVertical: 4 },
-  usageText: { textAlign: "center", color: colors.brownMuted, fontSize: 12 },
-  watchAdButton: { marginTop: 4, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: "#FDEEEB" },
+  utilityRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  ttsToggle: { minHeight: MIN_TOUCH_TARGET, minWidth: MIN_TOUCH_TARGET, alignItems: "center", justifyContent: "center" },
+  usageText: { color: colors.brownMuted, fontSize: 12 },
+  watchAdButton: { alignSelf: "center", marginTop: spacing.xs, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radii.pill, backgroundColor: "#FDEEEB" },
   watchAdText: { color: colors.coralDark, fontSize: 12, fontWeight: "700" },
   messages: { padding: spacing.md },
   bubbleRow: { marginBottom: spacing.sm, maxWidth: "85%" },

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { getMobileAdsModule } from "./src/utils/nativeAds";
@@ -15,9 +16,12 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <RootNavigator />
-    </SafeAreaProvider>
+    // Required root wrapper for the drawer sidebar's gesture handling.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <RootNavigator />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

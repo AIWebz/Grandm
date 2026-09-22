@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./types";
 import { useAuthStore } from "../state/authStore";
 import { OnboardingNavigator } from "./OnboardingNavigator";
-import { MainTabNavigator } from "./MainTabNavigator";
+import { MainDrawerNavigator } from "./MainDrawerNavigator";
 import { FTUEScreen } from "../screens/ftue/FTUEScreen";
 import { AccountRequiredSheet } from "../components/AccountRequiredSheet";
 import { PlusRequiredSheet } from "../components/PlusRequiredSheet";
@@ -51,10 +51,10 @@ export function RootNavigator() {
           ) : !ftueSeen ? (
             <>
               <Stack.Screen name="FTUE" component={FTUEScreen} />
-              <Stack.Screen name="Main" component={MainTabNavigator} />
+              <Stack.Screen name="Main" component={MainDrawerNavigator} />
             </>
           ) : (
-            <Stack.Screen name="Main" component={MainTabNavigator} />
+            <Stack.Screen name="Main" component={MainDrawerNavigator} />
           )}
         </Stack.Navigator>
       )}

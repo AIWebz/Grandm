@@ -16,9 +16,8 @@ export function RecipesHomeScreen({ navigation }: Props) {
   const { data, loading } = useRecipes({ search: search || undefined, difficulty });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <View style={styles.headerRow}>
-        <Text style={typography.hero}>Recipes 🍲</Text>
         <Pressable
           onPress={() => navigation.navigate("FamilyCookbook")}
           style={styles.cookbookLink}
@@ -116,7 +115,7 @@ export function RecipeRow({ recipe, onPress }: { recipe: Recipe; onPress: () => 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.cream },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  headerRow: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   cookbookLink: { minHeight: MIN_TOUCH_TARGET, justifyContent: "center" },
   search: {
     margin: spacing.md,

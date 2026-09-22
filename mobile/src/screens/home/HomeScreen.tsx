@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { useHome } from "../../hooks/useHome";
 import { useTasks } from "../../hooks/useTasks";
 import { useAuthStore } from "../../state/authStore";
@@ -25,7 +25,7 @@ function timeOfDayGreeting(): string {
 }
 
 export function HomeScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const navigation = useNavigation<DrawerNavigationProp<MainTabParamList>>();
   const { data, loading, error, isOffline, refresh } = useHome();
   const { toggleComplete } = useTasks({ date: new Date().toISOString().slice(0, 10) });
   const preferredName = useAuthStore((s) => s.user?.preferredName);
@@ -42,7 +42,7 @@ export function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <OfflineBanner />
       <ScrollView contentContainerStyle={styles.content} refreshControl={undefined}>
         <View style={styles.header}>

@@ -47,9 +47,8 @@ export function TasksHomeScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <View style={styles.header}>
-        <Text style={typography.hero}>Tasks ✓</Text>
         <View style={styles.headerLinks}>
           <PrimaryButton label="Planner" variant="ghost" onPress={() => navigation.navigate("Planner")} />
           <PrimaryButton label="Grocery" variant="ghost" onPress={() => navigation.navigate("GroceryLists")} />
@@ -105,7 +104,7 @@ export function TasksHomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.cream },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, paddingBottom: 0 },
+  header: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", padding: spacing.md, paddingBottom: 0 },
   headerLinks: { flexDirection: "row" },
   addRow: { flexDirection: "row", padding: spacing.md, alignItems: "center" },
   addInput: {

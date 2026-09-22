@@ -264,7 +264,52 @@ checking off, or deleting a grocery list/Family Cookbook recipe/memory fact
 a user already has never requires Plus, even if they've since downgraded —
 only *creating new* ones does.
 
-## 8. Data model
+## 8. Navigation: ChatGPT/Claude-style sidebar, superseding Section 12's tab bar
+
+**Decision: a slide-out hamburger drawer + Chat as the app's primary/default
+screen, replacing the spec's 5-tab bottom bar**, per explicit direction.
+`mobile/src/navigation/MainDrawerNavigator.tsx` (built on
+`@react-navigation/drawer`) is the new outer shell; `DrawerContent.tsx` is
+the sidebar itself:
+- A **"New chat"** button at the top, always visible, that clears the
+  current conversation (`GrandmaTab` navigated to with a `resetAt` param
+  `ChatScreen` watches) without touching the server-side daily usage cap,
+  which is per-day, not per-conversation.
+- A flat nav list (Grandma / Home / Recipes / Tasks & Planner) in place of
+  the old tab icons, with the current screen highlighted.
+- An account row pinned to the bottom (name + Free/Grandma+ badge) linking
+  to Profile — the ChatGPT/Claude pattern of keeping account access out of
+  the main nav list.
+
+Every screen gets the hamburger button automatically - `@react-navigation/drawer`
+adds it to any screen's native header by default, and the nested stacks
+(Recipes/Tasks/Profile, which manage their own headers) get it explicitly
+via `<DrawerToggleButton />` as their root screen's `headerLeft`. Chat's
+header additionally shows the mascot + "Grandma" as its title and a
+pencil/new-chat icon on the right, mirroring the hamburger-left,
+new-chat-right pattern both reference apps use.
+
+**Scoping note:** this is a navigation/layout change, not a rebuild of
+ChatGPT/Claude's multi-conversation history. Grandma AI still keeps one
+continuous conversation per user (as it always has) rather than a list of
+named, individually-resumable past chats — "New chat" clears the visible
+thread client-side, it doesn't create a second stored conversation
+server-side. Building real multi-thread history (separate stored
+conversations, a switchable list of them in the sidebar) would be a
+meaningful backend change (grouping `ChatMessage` rows by a conversation
+id) that wasn't part of this request; flagging it here as the natural next
+step if that's wanted later.
+
+Needed two new native-ish dependencies for the drawer's slide gesture:
+`react-native-gesture-handler` (app root wrapped in
+`GestureHandlerRootView` in `App.tsx`) and `react-native-reanimated` (its
+Babel plugin added to `babel.config.js`, must stay last in the plugins
+list). Both bundle cleanly via Metro for iOS and Android; the actual swipe
+gesture and slide animation could not be exercised in this sandbox (no
+device/simulator here), so give the drawer a try on a real device/simulator
+before considering this final.
+
+## 9. Data model
 
 See `server/prisma/schema.prisma`. One `User` row per person (guest or
 full), with `Task`, `Reminder`, `Recipe`, `FamilyCookbookRecipe`,
