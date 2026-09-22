@@ -1,0 +1,41 @@
+name: Set up Stripe Grandma+ product
+
+# Manual-trigger replacement for running `npm run stripe:setup` locally.
+# Before running: add a STRIPE_SECRET_KEY repository secret (Settings ->
+# Secrets and variables -> Actions -> New repository secret) with your
+# Stripe test or live secret key from dashboard.stripe.com/apikeys.
+# Then: Actions tab -> "Set up Stripe Grandma+ product" -> Run workflow.
+# The created product/price id is printed in this run's job summary -
+# copy it into STRIPE_PRICE_ID_MONTHLY wherever the server is deployed.
+on:
+  workflow_dispatch:
+    inputs:
+      priceUsd:
+        description: "Grandma+ monthly price in USD"
+        required: false
+        default: "14.99"
+
+jobs:
+  create-product:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Create/reuse the Grandma+ Stripe product and price
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          GRANDMA_PLUS_PRICE_USD: ${{ inputs.priceUsd }}
+        run: |
+          if [ -z "$STRIPE_SECRET_KEY" ]; then
+            echo "::error::STRIPE_SECRET_KEY repository secret is not set. Add it under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+          npm run stripe:setup | tee "$GITHUB_STEP_SUMMARY"

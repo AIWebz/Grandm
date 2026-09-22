@@ -18,41 +18,60 @@ and the full Free vs. Grandma+ feature matrix.
 - An [Expo](https://expo.dev) account (free) — used to run EAS Build, since this app uses native modules (IAP, AdMob, speech recognition) that Expo Go can't run
 - Optional but recommended before charging real customers: a [Stripe](https://dashboard.stripe.com) account, and an [AdMob](https://admob.google.com) account for real ad revenue
 
-## 1. Get the backend running locally
+## 1. Get the backend running
 
+**Option A - Docker (recommended, no local Node/Ollama install):**
+```bash
+cp server/.env.example server/.env
+docker compose up --build
+```
+`docker-compose.yml` runs Ollama and the server together: it pulls
+`llama3.1` (chat + tool-calling) and `llava` (Family Cookbook handwriting
+OCR) into a persistent volume on first run, then starts the server wired
+up to talk to it over the Docker network. Nothing else to install.
+
+**Option B - locally with Node:**
 ```bash
 cd server
 cp .env.example .env
 npm install
-npm run ollama:setup   # installs Ollama if needed, starts it, pulls the 2 models the app uses
+npm run ollama:setup   # installs Ollama if needed, starts it, pulls the 2 models
 npx prisma migrate deploy
 npm run dev
 ```
+`npm run ollama:setup` (`server/scripts/setup-ollama.sh`) installs Ollama
+if it isn't already there (Linux via its official install script, macOS
+via Homebrew), makes sure the daemon is running, then pulls both models.
+Safe to re-run any time. On Windows, it'll tell you to grab the installer
+from [ollama.com/download](https://ollama.com/download) first, then
+re-run the script from Git Bash/WSL to pull the models.
 
-`npm run ollama:setup` (`server/scripts/setup-ollama.sh`) handles the whole
-local AI engine for you: installs Ollama if it isn't already there (Linux
-via its official install script, macOS via Homebrew), makes sure the
-daemon is running, then pulls `llama3.1` (chat + tool-calling) and `llava`
-(handwriting photo OCR for the Family Cookbook). It's safe to re-run any
-time. On Windows, it'll tell you to grab the installer from
-[ollama.com/download](https://ollama.com/download) first, then re-run the
-script from Git Bash/WSL to pull the models.
-
-The server listens on `:4000`. Hit `curl localhost:4000/health` to confirm
-it's up, then send a chat message from the app to confirm you get a real
-reply. Leave `AI_PROVIDER=ollama` (the default) for this free local engine,
-or switch to `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` for hosted Claude
-instead (higher quality, costs money per use, no local hardware needed —
-worth it once you're serving real production traffic rather than testing).
+Either way, the server listens on `:4000` - hit `curl localhost:4000/health`
+to confirm it's up, then send a chat message from the app to confirm you
+get a real reply. Leave `AI_PROVIDER=ollama` (the default) for this free
+local engine, or switch to `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`
+for hosted Claude instead (higher quality, costs money per use, no local
+hardware needed — worth it once you're serving real production traffic
+rather than testing).
 
 ### Connect Stripe (so you actually get paid for Grandma+)
+
+**From GitHub, no local Node needed:** add a `STRIPE_SECRET_KEY`
+repository secret (Settings → Secrets and variables → Actions), then
+**Actions tab → "Set up Stripe Grandma+ product" → Run workflow.** It
+creates the $14.99/mo product+price via the Stripe API and prints the
+price id in the run's summary — copy that into `STRIPE_PRICE_ID_MONTHLY`.
+
+**Locally instead:**
 ```bash
-# In server/.env, set STRIPE_SECRET_KEY from dashboard.stripe.com/apikeys
+cd server
+# In .env, set STRIPE_SECRET_KEY from dashboard.stripe.com/apikeys
 npm run stripe:setup     # creates the $14.99/mo Grandma+ product+price, prints STRIPE_PRICE_ID_MONTHLY
 stripe listen --forward-to localhost:4000/billing/webhook   # local dev webhook secret
 ```
-For production, deploy the server somewhere with a public URL, create a
-webhook endpoint in the Stripe Dashboard pointed at
+
+Either way: for production, deploy the server somewhere with a public URL,
+create a webhook endpoint in the Stripe Dashboard pointed at
 `https://<your-domain>/billing/webhook`, and use that webhook's signing
 secret instead of the `stripe listen` one. Switch `STRIPE_SECRET_KEY` to
 your live key (`sk_live_...`) only once you're ready for real charges.
@@ -60,10 +79,15 @@ your live key (`sk_live_...`) only once you're ready for real charges.
 ### Deploy the backend somewhere real
 The app needs `EXPO_PUBLIC_API_URL` (mobile) pointing at a real, public
 HTTPS server before an App Store build — `localhost` only works on your
-own dev machine. Any standard Node host works (Railway, Render, Fly.io,
-a VPS, etc.); point `DATABASE_URL` at a real Postgres instance there
-instead of the local SQLite file (the Prisma schema is provider-agnostic
-enough for either — see `docs/ARCHITECTURE.md`).
+own dev machine. `.github/workflows/docker-publish.yml` already builds
+`server/Dockerfile` and pushes it to `ghcr.io/<owner>/<repo>/server` on
+every push to `main` — pull that image directly on any host that can run
+Docker (a VPS, Railway, Render, Fly.io, etc.) instead of cloning the repo
+there. Point `DATABASE_URL` at a real Postgres instance for anything
+beyond a single-container demo (the Prisma schema is provider-agnostic
+enough for either — see `docs/ARCHITECTURE.md`), and run Ollama as its own
+long-lived service (or use `AI_PROVIDER=anthropic`) rather than bundling a
+multi-GB model download into your deploy pipeline.
 
 ## 2. Get the mobile app running locally
 

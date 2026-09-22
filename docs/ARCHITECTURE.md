@@ -96,10 +96,15 @@ talks to a local Ollama daemon over HTTP (`OLLAMA_BASE_URL`, default
 - handwriting OCR needs a vision-capable local model
   (default `OLLAMA_VISION_MODEL=llava`).
 
-**Setup required on whatever machine runs the server:** install Ollama
-from [ollama.com](https://ollama.com), then `ollama pull llama3.1` and
-`ollama pull llava`, and make sure the Ollama app/daemon is running. This
-sandbox's network policy blocks reaching ollama.com, so Ollama itself
+**Setup required on whatever machine runs the server:** either run
+`docker compose up --build` from the repo root (`docker-compose.yml` runs
+Ollama and the server together and pulls both models automatically into a
+persistent volume — no manual install), or install Ollama from
+[ollama.com](https://ollama.com) yourself and run
+`npm run ollama:setup` (`server/scripts/setup-ollama.sh`) / `ollama pull
+llama3.1` + `ollama pull llava` directly. Either way, make sure the Ollama
+daemon is actually running. This sandbox's network policy blocks reaching
+ollama.com, so Ollama itself
 could not be installed or exercised against a live model here — the
 integration was verified by: (1) a clean TypeScript build, (2) matching
 `ollamaProvider.ts`'s request/response handling exactly against Ollama's
@@ -211,7 +216,10 @@ the exact raw bytes) verifies and handles `checkout.session.completed`,
 in sync. `npm run stripe:setup` (in `server/`) calls the Stripe API to
 create the "Grandma+" Product and a $14.99/month Price for you and prints
 the `STRIPE_PRICE_ID_MONTHLY` to put in `.env` — no clicking through the
-Dashboard required. On the client, `useStripeCheckout.ts` opens the
+Dashboard required; `.github/workflows/stripe-setup.yml` runs the same
+script as a manual GitHub Actions job (add a `STRIPE_SECRET_KEY` repo
+secret, then Actions tab → Run workflow) for doing this without a local
+Node install at all. On the client, `useStripeCheckout.ts` opens the
 Checkout/Portal URL in an in-app browser (`expo-web-browser`) — no native
 build needed, this works in Expo Go. The original native-IAP path
 (`react-native-iap`, `services/subscriptions/validators.ts`) is left in
