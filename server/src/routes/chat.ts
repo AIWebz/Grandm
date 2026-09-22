@@ -5,7 +5,7 @@ import { runChatTurn } from "../services/ai/chatService";
 import { answerRecipeQuestion } from "../services/ai/recipeService";
 import { getUsageStatus, incrementUsage } from "../utils/usageCap";
 import { prisma } from "../db/prisma";
-import { env } from "../config/env";
+import { isAiConfigured } from "../services/ai/provider";
 
 export const chatRouter = Router();
 
@@ -41,7 +41,7 @@ chatRouter.post("/message", requireAuth, async (req: AuthedRequest, res) => {
     return res.status(402).json({ error: "USAGE_CAP_REACHED", usage, message: "You've used today's free Grandma chats - Grandma+ gives you unlimited." });
   }
 
-  if (!env.anthropicApiKey) {
+  if (!isAiConfigured()) {
     return res.status(503).json({
       error: "AI_UNAVAILABLE",
       message: "I'm having a little trouble hearing you right now - try again in a moment?",
@@ -81,7 +81,7 @@ chatRouter.post("/recipe-question", requireAuth, async (req: AuthedRequest, res)
   const parse = schema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid request" });
 
-  if (!env.anthropicApiKey) {
+  if (!isAiConfigured()) {
     return res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having a little trouble hearing you right now - try again in a moment?" });
   }
 

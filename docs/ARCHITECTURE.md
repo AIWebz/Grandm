@@ -36,15 +36,21 @@ gated behind `requireFullAccount` middleware (`server/src/middleware/auth.ts`).
 
 ## 2. Tool-calling architecture (Section 4)
 
-`server/src/services/ai/tools.ts` defines the tool schema Anthropic's
-Messages API function-calling uses; `server/src/services/ai/toolHandlers.ts`
-executes each tool against Prisma and returns a structured result. The chat
-loop (`chatService.ts`) is: stream the model's response → if it emits a
-`tool_use` block, run the handler, persist the result, feed the tool result
-back to the model → stream the model's natural-language confirmation. The
-API response includes both the streamed text *and* a `toolInvocations[]`
-array so the client can render an inline card (task/grocery/recipe) instead
-of only showing text. No keyword/regex matching is used to trigger actions.
+`server/src/services/ai/tools.ts` defines a provider-agnostic tool schema
+(`AiTool[]`); `server/src/services/ai/toolHandlers.ts` executes each tool
+against Prisma and returns a structured result. The chat loop
+(`chatService.ts`) is: stream the model's response → if it emits a tool
+call, run the handler, persist the result, feed the tool result back to the
+model → stream the model's natural-language confirmation. The API response
+includes both the streamed text *and* a `toolInvocations[]` array so the
+client can render an inline card (task/grocery/recipe) instead of only
+showing text. No keyword/regex matching is used to trigger actions.
+
+This loop runs against whichever `AiProvider` is configured
+(`server/src/services/ai/provider.ts`) — see §4 below. Both the hosted
+Anthropic backend and the local Ollama backend implement the exact same
+tool-calling contract, so the chat/recipe/greeting/OCR code never branches
+on which one is active.
 
 Tools implemented: `create_task`, `update_task`, `create_reminder`,
 `create_grocery_list`, `add_grocery_item`, `create_recipe`, `update_schedule`,
@@ -69,18 +75,51 @@ interface, so swapping is a config change, not a rewrite:
 
 | Concern | Env var | Interface | Included implementation |
 |---|---|---|---|
-| LLM | `AI_PROVIDER` | `services/ai/provider.ts` | `anthropic` (live, real API calls) |
+| LLM | `AI_PROVIDER` | `services/ai/provider.ts` (`AiProvider` in `services/ai/types.ts`) | `ollama` **(default)** — local, no API key/billing; or `anthropic` — hosted, needs `ANTHROPIC_API_KEY` |
 | Database | `DATABASE_URL` | Prisma | SQLite for local dev, Postgres in prod (same schema) |
 | Auth | `AUTH_PROVIDER` | `services/auth/socialProviders.ts` | email/password (live); Apple/Google (adapter present, needs real client IDs — see below) |
 | Push | `PUSH_PROVIDER` | `services/notifications/pushService.ts` | `expo` (live, using Expo's push service) or `fcm`/`apns` adapters (stubbed — need real project credentials) |
 | Subscriptions | `IAP_PROVIDER` | `services/subscriptions/*` | server-side validation call structure is real; needs a real App Store Connect / Play Console app+key to validate live receipts |
 | Ads | `ADS_PROVIDER` | `services/ads/adsConfig.ts` + `mobile/src/components/AdSlot.tsx` | config/placement rules are real and enforced; needs a real ad network SDK + app id to serve live ads |
 
+### AI provider: Ollama (default) vs. Anthropic
+
+The app ships defaulting to `AI_PROVIDER=ollama` — a **local model with no
+API key, no billing account, and no external network call** — so the chat
+engine works without anyone signing up for anything. `services/ai/providers/ollamaProvider.ts`
+talks to a local Ollama daemon over HTTP (`OLLAMA_BASE_URL`, default
+`http://localhost:11434`):
+- the tool-calling chat loop uses Ollama's OpenAI-style `tools` field
+  (needs a tool-calling-capable model — default `OLLAMA_MODEL=llama3.1`);
+- recipe generation and handwriting OCR use Ollama's structured-output
+  mode (`format: <json schema>`) instead of forced tool use;
+- handwriting OCR needs a vision-capable local model
+  (default `OLLAMA_VISION_MODEL=llava`).
+
+**Setup required on whatever machine runs the server:** install Ollama
+from [ollama.com](https://ollama.com), then `ollama pull llama3.1` and
+`ollama pull llava`, and make sure the Ollama app/daemon is running. This
+sandbox's network policy blocks reaching ollama.com, so Ollama itself
+could not be installed or exercised against a live model here — the
+integration was verified by: (1) a clean TypeScript build, (2) matching
+`ollamaProvider.ts`'s request/response handling exactly against Ollama's
+documented `/api/chat` streaming, tool-calling, and structured-output
+formats, and (3) every AI call site going through the same `AiProvider`
+interface already end-to-end tested against the Anthropic backend. If
+Ollama isn't installed/running, requests fail closed into the same
+"I'm having a little trouble hearing you right now" fallback used
+everywhere else (never a raw error, never a silent hang) rather than
+crashing.
+
+Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to switch to the
+hosted backend instead — noticeably higher quality and more reliable tool
+use, at the cost of needing a paid API key.
+
 ### What's genuinely live in this build
 - Real Postgres/SQLite-backed persistence for every feature (tasks,
   recipes, grocery lists, Family Cookbook, memory, schedule, chat history).
-- Real Anthropic API calls with tool-calling, streaming, and vision
-  (used for handwritten recipe OCR).
+- A real AI backend with tool-calling, streaming, and vision (used for
+  handwritten recipe OCR) — Ollama by default, Anthropic as a drop-in swap.
 - Real JWT auth, password hashing (bcrypt), guest→full-account upgrade.
 - Real push notification *scheduling and preference logic*, dispatched
   through Expo's push service (works today with a real Expo project id).

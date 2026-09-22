@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireAuth, requireFullAccount, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
 import { digitizeHandwrittenRecipe } from "../services/ocr/recipeVision";
-import { env } from "../config/env";
+import { isAiConfigured } from "../services/ai/provider";
 
 export const familyCookbookRouter = Router();
 
@@ -57,7 +57,7 @@ familyCookbookRouter.post("/", requireAuth, requireFullAccount, async (req: Auth
 /** Upload a photo of a handwritten recipe card; runs vision OCR and returns a draft for review. */
 familyCookbookRouter.post("/digitize", requireAuth, requireFullAccount, upload.single("photo"), async (req: AuthedRequest, res) => {
   if (!req.file) return res.status(400).json({ error: "photo file required" });
-  if (!env.anthropicApiKey) {
+  if (!isAiConfigured()) {
     return res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having trouble reading photos right now - try again in a moment?" });
   }
 

@@ -12,10 +12,14 @@ export const env = {
   jwtSecret: required("JWT_SECRET", "dev-secret-change-me"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
 
-  aiProvider: process.env.AI_PROVIDER ?? "anthropic",
+  aiProvider: process.env.AI_PROVIDER ?? "ollama",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5",
   anthropicVisionModel: process.env.ANTHROPIC_VISION_MODEL ?? "claude-sonnet-5",
+
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+  ollamaModel: process.env.OLLAMA_MODEL ?? "llama3.1",
+  ollamaVisionModel: process.env.OLLAMA_VISION_MODEL ?? "llava",
 
   freeDailyChatCap: Number(process.env.FREE_DAILY_CHAT_CAP ?? 15),
 

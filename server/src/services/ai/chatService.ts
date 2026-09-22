@@ -1,10 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { anthropic } from "./anthropicClient";
 import { GRANDMA_TOOLS } from "./tools";
 import { TOOL_HANDLERS, ToolInvocationResult } from "./toolHandlers";
 import { buildSystemPrompt } from "./systemPrompt";
+import { getAiProvider } from "./provider";
+import { AiMessage } from "./types";
 import { prisma } from "../../db/prisma";
-import { env } from "../../config/env";
 import { startOfDay, endOfDay } from "../../utils/dates";
 import { PersonalityStyle } from "../../types/enums";
 
@@ -31,6 +30,8 @@ async function loadUserContext(userId: string) {
  * keep going until the model produces a final natural-language answer.
  * `onTextDelta` is called for every streamed text token so the HTTP route
  * can forward it to the client as it arrives (Section 18 streaming req).
+ * Works against whichever AiProvider is configured (Anthropic or the
+ * local Ollama backend - see docs/ARCHITECTURE.md).
  */
 export async function runChatTurn(
   userId: string,
@@ -38,6 +39,7 @@ export async function runChatTurn(
   userMessage: string,
   onTextDelta: (delta: string) => void
 ): Promise<ChatTurnResult> {
+  const provider = getAiProvider();
   const { user, memoryFacts, todaysTasks } = await loadUserContext(userId);
   const system = buildSystemPrompt({
     preferredName: user.preferredName,
@@ -46,8 +48,8 @@ export async function runChatTurn(
     todaysTasks: todaysTasks.map((t) => ({ title: t.title, completed: t.completed })),
   });
 
-  const messages: Anthropic.MessageParam[] = [
-    ...history.map((h) => ({ role: h.role, content: h.content } as Anthropic.MessageParam)),
+  const messages: AiMessage[] = [
+    ...history.map((h): AiMessage => (h.role === "user" ? { role: "user", content: h.content } : { role: "assistant", text: h.content })),
     { role: "user", content: userMessage },
   ];
 
@@ -55,42 +57,27 @@ export async function runChatTurn(
   let finalText = "";
 
   for (let iteration = 0; iteration < 5; iteration++) {
-    const stream = anthropic.messages.stream({
-      model: env.anthropicModel,
-      max_tokens: 1024,
+    const { assistantMessage, stopReason } = await provider.chatTurn({
       system,
       messages,
       tools: GRANDMA_TOOLS,
+      onTextDelta: (delta) => {
+        finalText += delta;
+        onTextDelta(delta);
+      },
     });
+    messages.push(assistantMessage);
 
-    stream.on("text", (delta) => {
-      finalText += delta;
-      onTextDelta(delta);
-    });
+    if (stopReason !== "tool_use" || !assistantMessage.toolCalls?.length) break;
 
-    const finalMessage = await stream.finalMessage();
-
-    if (finalMessage.stop_reason !== "tool_use") {
-      break;
-    }
-
-    messages.push({ role: "assistant", content: finalMessage.content });
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of finalMessage.content) {
-      if (block.type !== "tool_use") continue;
-      const handler = TOOL_HANDLERS[block.name];
+    for (const call of assistantMessage.toolCalls) {
+      const handler = TOOL_HANDLERS[call.name];
       const invocation = handler
-        ? await handler(userId, block.input)
-        : { tool: block.name, input: block.input, result: { error: "Unknown tool" } };
+        ? await handler(userId, call.input)
+        : { tool: call.name, input: call.input, result: { error: "Unknown tool" } };
       toolInvocations.push(invocation);
-      toolResults.push({
-        type: "tool_result",
-        tool_use_id: block.id,
-        content: JSON.stringify(invocation.result),
-      });
+      messages.push({ role: "tool_result", toolCallId: call.id, toolName: call.name, content: JSON.stringify(invocation.result) });
     }
-    messages.push({ role: "user", content: toolResults });
     // Loop again so the model can narrate a confirmation referencing the tool result.
   }
 

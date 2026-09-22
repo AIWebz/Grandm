@@ -26,10 +26,23 @@ App Store/Play Console apps, and an ad network account).
 
 ## Quick start
 
+### AI engine (Ollama, no API key)
+The app defaults to a local model via [Ollama](https://ollama.com) — no
+signup, no API key, nothing sent to a third party. Install it, then pull a
+tool-calling model and a vision model (for handwriting digitization) and
+leave the app running:
+```
+ollama pull llama3.1
+ollama pull llava
+```
+Prefer a hosted model (higher quality, costs money)? Set
+`AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `server/.env` instead —
+see `docs/ARCHITECTURE.md` §4 for the full tradeoff.
+
 ### Backend
 ```
 cd server
-cp .env.example .env   # fill in ANTHROPIC_API_KEY at minimum
+cp .env.example .env   # defaults to the local Ollama setup above
 npm install
 npx prisma migrate dev
 npm run dev

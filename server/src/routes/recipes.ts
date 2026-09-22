@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireFullAccount, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
 import { generateRecipe } from "../services/ai/recipeService";
-import { env } from "../config/env";
+import { isAiConfigured } from "../services/ai/provider";
 
 export const recipesRouter = Router();
 
@@ -54,7 +54,7 @@ recipesRouter.post("/generate", requireAuth, async (req: AuthedRequest, res) => 
   const parse = schema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid request" });
 
-  if (!env.anthropicApiKey) {
+  if (!isAiConfigured()) {
     return res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having a little trouble hearing you right now - try again in a moment?" });
   }
 

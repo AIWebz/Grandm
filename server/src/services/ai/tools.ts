@@ -1,11 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { AiTool } from "./types";
 
 /**
  * The tool/function-calling schema Grandma's model can invoke. This is the
  * mechanism by which chat turns into real app actions (Section 4) - there
  * is no keyword or regex matching on chat text anywhere in this codebase.
+ * Provider-agnostic (Anthropic and Ollama both consume this same shape -
+ * see services/ai/provider.ts).
  */
-export const GRANDMA_TOOLS: Anthropic.Tool[] = [
+export const GRANDMA_TOOLS: AiTool[] = [
   {
     name: "create_task",
     description: "Create a to-do item for the user, optionally recurring or scheduled for a specific date.",
