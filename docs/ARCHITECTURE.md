@@ -196,11 +196,81 @@ context — e.g. she celebrates on Home when every task for the day is
 checked off — without becoming a distracting animated performance; the
 only continuous motion is the existing subtle blink.
 
-## 7. Data model
+## 7. Monetization: Free vs. Grandma+ ($14.99/mo), billed through Stripe
+
+**Decision: Stripe Checkout/Billing Portal is the primary billing rail**,
+superseding the spec's original StoreKit/Play Billing-only requirement, per
+explicit direction. `server/src/services/billing/stripeClient.ts` +
+`server/src/routes/billing.ts` implement it for real: `POST /billing/checkout-session`
+creates a Stripe Customer (once) and a subscription Checkout Session;
+`POST /billing/portal-session` opens Stripe's hosted subscription-management
+portal; `POST /billing/webhook` (mounted with `express.raw()` **before** the
+global JSON body parser in `index.ts`, since signature verification needs
+the exact raw bytes) verifies and handles `checkout.session.completed`,
+`customer.subscription.updated/created/deleted` to keep `Subscription.tier`
+in sync. `npm run stripe:setup` (in `server/`) calls the Stripe API to
+create the "Grandma+" Product and a $14.99/month Price for you and prints
+the `STRIPE_PRICE_ID_MONTHLY` to put in `.env` — no clicking through the
+Dashboard required. On the client, `useStripeCheckout.ts` opens the
+Checkout/Portal URL in an in-app browser (`expo-web-browser`) — no native
+build needed, this works in Expo Go. The original native-IAP path
+(`react-native-iap`, `services/subscriptions/validators.ts`) is left in
+place as a secondary option (`SubscriptionSettingsScreen` shows it only
+when that native module is actually loaded) since it's still what Apple/
+Google generally expect for in-app digital subscriptions — see the note
+below.
+
+**Compliance note, said plainly:** shipping Stripe as the *only* purchase
+path inside an iOS/Android app generally conflicts with App Store/Play
+Store policy for digital subscriptions (Apple's Guideline 3.1.1 in
+particular), unless the app qualifies for one of their specific exceptions.
+This build implements Stripe because that's what was asked for and it's
+fully testable without app-store accounts; the native IAP path already
+built stays available for an actual store submission. This tradeoff is
+worth a conscious decision before shipping to a store, not a silent
+default.
+
+**Sandbox limitation:** this environment's network policy also blocks
+`api.stripe.com`, so the Stripe integration could not be exercised against
+a live test-mode account here (same limitation as Ollama in §4). It's
+verified via a clean TypeScript build and a live local smoke test of every
+non-Stripe-network code path (webhook route wiring, the `NOT_CONFIGURED`
+fallback when no key is set, checkout/portal correctly requiring a full
+account). Testing an actual charge needs your own Stripe test-mode keys.
+
+### Free vs. Grandma+ feature matrix
+
+| Feature | Free | Grandma+ |
+|---|---|---|
+| Chat, daily planner (add/move/remove one item), traditional (catalog) recipes, chores/tasks | ✅ | ✅ |
+| Ads | shown | none |
+| AI recipe generation | capped (`FREE_DAILY_RECIPE_CAP`, default 3/day) | unlimited |
+| Grocery list generation (create/add-to/merge lists, push a recipe's ingredients to a list) | ❌ | ✅ |
+| Long-term memory (remembering favorites, dietary needs, routines) | ❌ | ✅ |
+| Family Cookbook (create, digitize handwriting, share through Messages) | ❌ | ✅ |
+| Advanced planning (the `plan_day` chat tool laying out a whole day at once) | ❌ | ✅ |
+
+Enforcement lives in two places that mirror each other: REST routes use
+`requirePlus` middleware (`server/src/middleware/auth.ts`), and the same
+chat tools use the `isPlusUser()` helper (`server/src/utils/subscriptionTier.ts`)
+directly, since tool calls don't go through Express middleware. Both return
+a `PLUS_REQUIRED` result rather than silently failing; the system prompt
+(§3) instructs the model to mention Grandma+ warmly when it sees one rather
+than just erroring out. On the client, `useApiGate()` catches
+`ACCOUNT_REQUIRED`/`PLUS_REQUIRED` centrally and pops the matching sheet
+(`AccountRequiredSheet` / `PlusRequiredSheet`) instead of every call site
+handling it by hand. Existing data is always grandfathered: reading,
+checking off, or deleting a grocery list/Family Cookbook recipe/memory fact
+a user already has never requires Plus, even if they've since downgraded —
+only *creating new* ones does.
+
+## 8. Data model
 
 See `server/prisma/schema.prisma`. One `User` row per person (guest or
 full), with `Task`, `Reminder`, `Recipe`, `FamilyCookbookRecipe`,
 `GroceryList`/`GroceryItem`, `ScheduleEvent`, `MemoryFact`,
-`ChatMessage`, `NotificationPreference`, and `Subscription`.
+`ChatMessage`, `NotificationPreference`, and `Subscription` (now carrying
+both `originalTransactionId` for native IAP and `stripeCustomerId`/
+`stripeSubscriptionId` for Stripe, so either rail writes to the same tier).
 "Today's Tasks" on Home is a filtered read of `Task`, not a separate model,
 per Section 3.

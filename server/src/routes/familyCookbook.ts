@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
-import { requireAuth, requireFullAccount, AuthedRequest } from "../middleware/auth";
+import { requireAuth, requireFullAccount, requirePlus, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
 import { digitizeHandwrittenRecipe } from "../services/ocr/recipeVision";
 import { isAiConfigured } from "../services/ai/provider";
@@ -38,7 +38,7 @@ const MANUAL_SCHEMA = z.object({
   steps: z.array(z.string()).default([]),
 });
 
-familyCookbookRouter.post("/", requireAuth, requireFullAccount, async (req: AuthedRequest, res) => {
+familyCookbookRouter.post("/", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const parse = MANUAL_SCHEMA.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid recipe" });
   const recipe = await prisma.familyCookbookRecipe.create({
@@ -55,7 +55,7 @@ familyCookbookRouter.post("/", requireAuth, requireFullAccount, async (req: Auth
 });
 
 /** Upload a photo of a handwritten recipe card; runs vision OCR and returns a draft for review. */
-familyCookbookRouter.post("/digitize", requireAuth, requireFullAccount, upload.single("photo"), async (req: AuthedRequest, res) => {
+familyCookbookRouter.post("/digitize", requireAuth, requireFullAccount, requirePlus, upload.single("photo"), async (req: AuthedRequest, res) => {
   if (!req.file) return res.status(400).json({ error: "photo file required" });
   if (!isAiConfigured()) {
     return res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having trouble reading photos right now - try again in a moment?" });
@@ -84,7 +84,7 @@ familyCookbookRouter.post("/digitize", requireAuth, requireFullAccount, upload.s
 });
 
 /** Add/replace a finished-dish photo. */
-familyCookbookRouter.post("/:id/photo", requireAuth, requireFullAccount, upload.single("photo"), async (req: AuthedRequest, res) => {
+familyCookbookRouter.post("/:id/photo", requireAuth, requireFullAccount, requirePlus, upload.single("photo"), async (req: AuthedRequest, res) => {
   const recipe = await prisma.familyCookbookRecipe.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!recipe) return res.status(404).json({ error: "Not found" });
   if (!req.file) return res.status(400).json({ error: "photo file required" });
@@ -95,7 +95,7 @@ familyCookbookRouter.post("/:id/photo", requireAuth, requireFullAccount, upload.
   res.json({ recipe: serialize(updated) });
 });
 
-familyCookbookRouter.patch("/:id", requireAuth, requireFullAccount, async (req: AuthedRequest, res) => {
+familyCookbookRouter.patch("/:id", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const recipe = await prisma.familyCookbookRecipe.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!recipe) return res.status(404).json({ error: "Not found" });
 

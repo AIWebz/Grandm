@@ -1,5 +1,9 @@
 import { prisma } from "../../db/prisma";
 import { TaskCategory, RecurrenceRule } from "../../types/enums";
+import { isPlusUser } from "../../utils/subscriptionTier";
+import { getRecipeUsageStatus, incrementRecipeUsage } from "../../utils/usageCap";
+
+const PLUS_REQUIRED_RESULT = { error: "PLUS_REQUIRED", message: "That's a Grandma+ feature." };
 
 export interface ToolInvocationResult {
   tool: string;
@@ -60,6 +64,10 @@ async function handleCreateReminder(userId: string, input: any): Promise<ToolInv
 }
 
 async function handleCreateRecipe(userId: string, input: any): Promise<ToolInvocationResult> {
+  const usage = await getRecipeUsageStatus(userId);
+  if (usage.atCap) {
+    return { tool: "create_recipe", input, result: { error: "RECIPE_CAP_REACHED", message: "You've used today's free recipes - Grandma+ gives you unlimited recipes." } };
+  }
   const recipe = await prisma.recipe.create({
     data: {
       userId,
@@ -75,10 +83,14 @@ async function handleCreateRecipe(userId: string, input: any): Promise<ToolInvoc
       isGenerated: true,
     },
   });
+  await incrementRecipeUsage(userId);
   return { tool: "create_recipe", input, result: { recipeId: recipe.id }, card: { type: "recipe", data: recipe } };
 }
 
 async function handleCreateGroceryList(userId: string, input: any): Promise<ToolInvocationResult> {
+  if (!(await isPlusUser(userId))) {
+    return { tool: "create_grocery_list", input, result: PLUS_REQUIRED_RESULT };
+  }
   const list = await prisma.groceryList.create({
     data: {
       userId,
@@ -91,6 +103,9 @@ async function handleCreateGroceryList(userId: string, input: any): Promise<Tool
 }
 
 async function handleAddGroceryItem(userId: string, input: any): Promise<ToolInvocationResult> {
+  if (!(await isPlusUser(userId))) {
+    return { tool: "add_grocery_item", input, result: PLUS_REQUIRED_RESULT };
+  }
   const list = await prisma.groceryList.findFirst({ where: { id: input.groceryListId, userId } });
   if (!list) return { tool: "add_grocery_item", input, result: { error: "Grocery list not found" } };
   await prisma.groceryItem.createMany({
@@ -123,6 +138,9 @@ async function handleUpdateSchedule(userId: string, input: any): Promise<ToolInv
 }
 
 async function handlePlanDay(userId: string, input: any): Promise<ToolInvocationResult> {
+  if (!(await isPlusUser(userId))) {
+    return { tool: "plan_day", input, result: { ...PLUS_REQUIRED_RESULT, message: "Laying out a whole day at once is a Grandma+ feature - I'm happy to add things one at a time though!" } };
+  }
   const forDate = new Date(input.forDate);
   const events = await Promise.all(
     (input.blocks as any[]).map((b) =>
@@ -135,6 +153,9 @@ async function handlePlanDay(userId: string, input: any): Promise<ToolInvocation
 }
 
 async function handleSaveMemoryFact(userId: string, input: any): Promise<ToolInvocationResult> {
+  if (!(await isPlusUser(userId))) {
+    return { tool: "save_memory_fact", input, result: { skipped: true, reason: "Long-term memory is a Grandma+ feature." } };
+  }
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user?.memoryOptIn) {
     return { tool: "save_memory_fact", input, result: { skipped: true, reason: "Memory is not turned on for this user." } };

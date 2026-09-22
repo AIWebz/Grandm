@@ -1,14 +1,24 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TextInput, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecipesStackParamList } from "../../navigation/types";
-import { useFamilyCookbookDetail } from "../../hooks/useFamilyCookbook";
+import { useFamilyCookbookDetail, FamilyCookbookRecipe } from "../../hooks/useFamilyCookbook";
+import { useSubscriptionStatus } from "../../hooks/useSubscriptionStatus";
 import { api } from "../../api/client";
 import { Card } from "../../components/Card";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { colors, typography, spacing, radii } from "../../theme/theme";
 import { API_URL } from "../../api/config";
+
+function formatRecipeForSharing(recipe: FamilyCookbookRecipe): string {
+  const parts = [recipe.relatedPerson ? `${recipe.name} - ${recipe.relatedPerson}` : recipe.name];
+  if (recipe.memoryStory) parts.push(`"${recipe.memoryStory}"`);
+  if (recipe.ingredients.length) parts.push(["Ingredients:", ...recipe.ingredients.map((i) => `- ${i}`)].join("\n"));
+  if (recipe.steps.length) parts.push(["Steps:", ...recipe.steps.map((s, i) => `${i + 1}. ${s}`)].join("\n"));
+  parts.push("Shared from Grandma AI's Family Cookbook ❤️");
+  return parts.join("\n\n");
+}
 
 type Props = NativeStackScreenProps<RecipesStackParamList, "FamilyCookbookDetail">;
 
@@ -16,6 +26,7 @@ export function FamilyCookbookDetailScreen({ route }: Props) {
   const { recipeId } = route.params;
   const { data, loading, refresh } = useFamilyCookbookDetail(recipeId);
   const recipe = data?.recipe;
+  const { tier } = useSubscriptionStatus();
   const [editing, setEditing] = useState(false);
   const [ingredientsText, setIngredientsText] = useState("");
   const [stepsText, setStepsText] = useState("");
@@ -59,6 +70,15 @@ export function FamilyCookbookDetailScreen({ route }: Props) {
         <Text style={[typography.hero, { color: colors.coralDark }]}>{recipe.name}</Text>
         {recipe.relatedPerson && <Text style={typography.subtitle}>{recipe.relatedPerson}</Text>}
         {recipe.memoryStory && <Text style={[typography.body, styles.story]}>"{recipe.memoryStory}"</Text>}
+
+        {tier === "PLUS" && (
+          <PrimaryButton
+            label="Share through Messages"
+            variant="secondary"
+            onPress={() => Share.share({ message: formatRecipeForSharing(recipe) })}
+            style={{ marginTop: spacing.md, alignSelf: "flex-start" }}
+          />
+        )}
 
         {recipe.needsReview && !editing && (
           <Card style={styles.reviewCard}>

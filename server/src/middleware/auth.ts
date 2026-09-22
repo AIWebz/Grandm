@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../services/auth/jwt";
 import { prisma } from "../db/prisma";
+import { isPlusUser } from "../utils/subscriptionTier";
 
 export interface AuthedRequest extends Request {
   userId?: string;
@@ -35,4 +36,16 @@ export function requireFullAccount(req: AuthedRequest, res: Response, next: Next
     return res.status(403).json({ error: "ACCOUNT_REQUIRED", message: "Create a free account to save this." });
   }
   next();
+}
+
+/**
+ * Gates the features that are exclusively Grandma+ ($14.99/mo): grocery
+ * list generation, the shared Family Cookbook, long-term memory, and
+ * unlimited recipes (recipe generation is capped rather than blocked - see
+ * utils/recipeUsageCap.ts). Guests fail this too (never subscribed), so
+ * there's no need to chain requireFullAccount before it.
+ */
+export async function requirePlus(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (await isPlusUser(req.userId!)) return next();
+  res.status(403).json({ error: "PLUS_REQUIRED", message: "This is a Grandma+ feature." });
 }

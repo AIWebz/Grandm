@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RecipesStackParamList } from "../../navigation/types";
 import { useFamilyCookbook } from "../../hooks/useFamilyCookbook";
+import { useSubscriptionStatus } from "../../hooks/useSubscriptionStatus";
 import { EmptyState } from "../../components/EmptyState";
 import { colors, typography, spacing, radii } from "../../theme/theme";
 import { API_URL } from "../../api/config";
@@ -13,12 +14,14 @@ type Props = NativeStackScreenProps<RecipesStackParamList, "FamilyCookbook">;
 /** Distinct, more personal visual treatment than the general Recipes tab (Section 6) - photo-forward, warmer, less "app-like". */
 export function FamilyCookbookScreen({ navigation }: Props) {
   const { data, loading } = useFamilyCookbook();
+  const { tier } = useSubscriptionStatus();
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={[typography.hero, styles.title]}>Our Family Cookbook</Text>
         <Text style={[typography.body, styles.subtitle]}>Recipes worth keeping in the family, just as they were written.</Text>
+        {tier !== "PLUS" && <Text style={styles.plusBadge}>Grandma+ feature - $14.99/mo</Text>}
       </View>
 
       <FlatList
@@ -74,6 +77,7 @@ const styles = StyleSheet.create({
   header: { padding: spacing.md, paddingTop: spacing.sm },
   title: { color: colors.coralDark },
   subtitle: { color: colors.brownMuted, marginTop: spacing.xs },
+  plusBadge: { color: colors.coralDark, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
   card: {
     flexDirection: "row",
     backgroundColor: "#FFFDF9",

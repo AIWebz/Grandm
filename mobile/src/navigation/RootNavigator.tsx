@@ -8,6 +8,7 @@ import { OnboardingNavigator } from "./OnboardingNavigator";
 import { MainTabNavigator } from "./MainTabNavigator";
 import { FTUEScreen } from "../screens/ftue/FTUEScreen";
 import { AccountRequiredSheet } from "../components/AccountRequiredSheet";
+import { PlusRequiredSheet } from "../components/PlusRequiredSheet";
 import { GrandmaAvatar } from "../components/GrandmaAvatar";
 import { colors } from "../theme/theme";
 import { hasSeenFTUE } from "../utils/ftueFlag";
@@ -58,6 +59,7 @@ export function RootNavigator() {
         </Stack.Navigator>
       )}
       <AccountRequiredSheet />
+      <PlusRequiredSheet />
     </NavigationContainer>
   );
 }

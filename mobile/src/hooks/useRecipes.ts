@@ -61,17 +61,33 @@ export function useRecipeDetail(recipeId: string) {
   return useApiData<{ recipe: Recipe }>(() => api.get<{ recipe: Recipe }>(`/recipes/${recipeId}`), [recipeId], `recipe_${recipeId}`);
 }
 
+export interface RecipeUsageStatus {
+  used: number;
+  cap: number;
+  remaining: number;
+  atCap: boolean;
+  unlimited: boolean;
+}
+
+/** Free tier gets a small daily allowance of AI-generated recipes on top of the traditional catalog; Grandma+ is unlimited. */
+export function useRecipeUsage(refreshKey: number) {
+  return useApiData<RecipeUsageStatus>(() => api.get<RecipeUsageStatus>("/recipes/usage"), [refreshKey]);
+}
+
 export function useGenerateRecipe() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [atCap, setAtCap] = useState(false);
 
   const generate = async (prompt: string, category?: string): Promise<Recipe | null> => {
     setGenerating(true);
     setError(null);
+    setAtCap(false);
     try {
       const res = await api.post<{ recipe: Recipe }>("/recipes/generate", { prompt, category });
       return res.recipe;
     } catch (e: any) {
+      if (e.code === "RECIPE_CAP_REACHED") setAtCap(true);
       setError(e.message ?? "I'm having a little trouble hearing you right now - try again in a moment?");
       return null;
     } finally {
@@ -79,5 +95,5 @@ export function useGenerateRecipe() {
     }
   };
 
-  return { generate, generating, error };
+  return { generate, generating, error, atCap };
 }

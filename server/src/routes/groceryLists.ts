@@ -1,16 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, AuthedRequest } from "../middleware/auth";
+import { requireAuth, requireFullAccount, requirePlus, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
 
 export const groceryListsRouter = Router();
 
+// Reading, checking off, and deleting existing lists always stays available
+// (grandfathered) even for a free/downgraded user - only *generating* new
+// lists/items is the Grandma+ feature (Section: "grocery shopping list generation").
 groceryListsRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   const lists = await prisma.groceryList.findMany({ where: { userId: req.userId }, include: { items: true }, orderBy: { createdAt: "desc" } });
   res.json({ groceryLists: lists });
 });
 
-groceryListsRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
+groceryListsRouter.post("/", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const schema = z.object({
     title: z.string().default("Grocery List"),
     items: z.array(z.object({ name: z.string(), quantity: z.string().optional(), storeCategory: z.string().default("other") })).default([]),
@@ -24,7 +27,7 @@ groceryListsRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
   res.status(201).json({ groceryList: list });
 });
 
-groceryListsRouter.post("/:id/items", requireAuth, async (req: AuthedRequest, res) => {
+groceryListsRouter.post("/:id/items", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const list = await prisma.groceryList.findFirst({ where: { id: req.params.id, userId: req.userId } });
   if (!list) return res.status(404).json({ error: "Not found" });
   const schema = z.object({ name: z.string(), quantity: z.string().optional(), storeCategory: z.string().default("other") });
@@ -62,7 +65,7 @@ groceryListsRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) =
  * Merge several grocery lists into one consolidated list, deduplicating by
  * name and summing quantities where the unit matches (Section 9).
  */
-groceryListsRouter.post("/merge", requireAuth, async (req: AuthedRequest, res) => {
+groceryListsRouter.post("/merge", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const schema = z.object({ listIds: z.array(z.string()).min(2), title: z.string().default("Combined Grocery List") });
   const parse = schema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Provide at least 2 listIds" });

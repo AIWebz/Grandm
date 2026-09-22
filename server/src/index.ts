@@ -16,10 +16,14 @@ import { notificationsRouter } from "./routes/notifications";
 import { subscriptionsRouter } from "./routes/subscriptions";
 import { homeRouter } from "./routes/home";
 import { configRouter } from "./routes/config";
+import { billingRouter, billingWebhookHandler } from "./routes/billing";
 
 const app = express();
 
 app.use(cors());
+// Stripe webhook needs the exact raw body for signature verification, so
+// it's registered before the global JSON parser below.
+app.post("/billing/webhook", express.raw({ type: "application/json" }), billingWebhookHandler);
 app.use(express.json({ limit: "2mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
@@ -41,6 +45,7 @@ app.use("/notifications", notificationsRouter);
 app.use("/subscriptions", subscriptionsRouter);
 app.use("/home", homeRouter);
 app.use("/config", configRouter);
+app.use("/billing", billingRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

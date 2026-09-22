@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { api, ApiError } from "../api/client";
+import { api } from "../api/client";
 import { useApiData } from "./useApiData";
-import { useAppStore } from "../state/appStore";
+import { useApiGate } from "./useApiGate";
 
 export interface FamilyCookbookRecipe {
   id: string;
@@ -31,24 +31,14 @@ export function useFamilyCookbookDetail(recipeId: string) {
   );
 }
 
-function useAccountGate() {
-  const requireFullAccount = useAppStore((s) => s.requireFullAccount);
-  return async <T,>(fn: () => Promise<T>, reason: string): Promise<T | null> => {
-    try {
-      return await fn();
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "ACCOUNT_REQUIRED") {
-        requireFullAccount(reason);
-        return null;
-      }
-      throw e;
-    }
-  };
-}
+const GATE_REASONS = {
+  account: "Create a free account, then upgrade to Grandma+, to start Our Family Cookbook.",
+  plus: "Our Family Cookbook - with sharing through Messages - is a Grandma+ feature.",
+};
 
 export function useAddFamilyCookbookRecipe() {
   const [saving, setSaving] = useState(false);
-  const gate = useAccountGate();
+  const gate = useApiGate();
 
   const addManual = (input: { name: string; relatedPerson?: string; memoryStory?: string; ingredients: string[]; steps: string[] }) =>
     gate(async () => {
@@ -58,7 +48,7 @@ export function useAddFamilyCookbookRecipe() {
       } finally {
         setSaving(false);
       }
-    }, "Create a free account to start Our Family Cookbook.");
+    }, GATE_REASONS);
 
   const digitize = (photoUri: string, mimeType: string) =>
     gate(async () => {
@@ -70,7 +60,7 @@ export function useAddFamilyCookbookRecipe() {
       } finally {
         setSaving(false);
       }
-    }, "Create a free account to digitize handwritten recipes.");
+    }, GATE_REASONS);
 
   return { addManual, digitize, saving };
 }

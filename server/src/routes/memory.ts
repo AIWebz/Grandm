@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, AuthedRequest } from "../middleware/auth";
+import { requireAuth, requirePlus, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
+import { isPlusUser } from "../utils/subscriptionTier";
 
 export const memoryRouter = Router();
 
@@ -11,18 +12,25 @@ memoryRouter.get("/", requireAuth, async (req: AuthedRequest, res) => {
   res.json({ memoryOptIn: user.memoryOptIn, facts });
 });
 
-/** Explicit, plain-language opt-in/out (Section 10) - not buried in settings. */
+/**
+ * Explicit, plain-language opt-in/out (Section 10) - not buried in
+ * settings. Long-term memory is a Grandma+ feature, but turning it OFF is
+ * always allowed regardless of tier - never block someone from opting out.
+ */
 memoryRouter.post("/opt-in", requireAuth, async (req: AuthedRequest, res) => {
   const schema = z.object({ enabled: z.boolean() });
   const parse = schema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid request" });
+  if (parse.data.enabled && !(await isPlusUser(req.userId!))) {
+    return res.status(403).json({ error: "PLUS_REQUIRED", message: "Long-term memory is a Grandma+ feature." });
+  }
   await prisma.user.update({ where: { id: req.userId }, data: { memoryOptIn: parse.data.enabled } });
   res.json({ memoryOptIn: parse.data.enabled });
 });
 
 const ALLOWED_CATEGORIES = ["favorite_food", "disliked_food", "dietary_restriction", "favorite_recipe", "routine", "skill_level", "schedule", "other"];
 
-memoryRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
+memoryRouter.post("/", requireAuth, requirePlus, async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
   if (!user.memoryOptIn) return res.status(403).json({ error: "MEMORY_DISABLED", message: "Turn on memory first to save this." });
   const schema = z.object({ category: z.enum(ALLOWED_CATEGORIES as [string, ...string[]]), fact: z.string().min(1) });

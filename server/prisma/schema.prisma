@@ -48,6 +48,7 @@ model User {
   aiUsage                AiUsage[]
   notificationLogs       NotificationLog[]
   rewardedUnlocks        RewardedUnlock[]
+  recipeUsage            RecipeUsage[]
 }
 
 model Task {
@@ -184,8 +185,10 @@ model Subscription {
   userId        String   @unique
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tier          String   @default("FREE")
-  platform      String?  // "ios" | "android"
-  originalTransactionId String?
+  platform      String?  // "ios" | "android" | "stripe"
+  originalTransactionId String? // Apple/Google IAP
+  stripeCustomerId      String? @unique
+  stripeSubscriptionId  String? @unique
   expiresAt     DateTime?
   autoRenew     Boolean  @default(false)
   updatedAt     DateTime @updatedAt
@@ -202,6 +205,16 @@ model AiUsage {
 }
 
 model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+
+  @@unique([userId, day])
+}
+
+model RecipeUsage {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

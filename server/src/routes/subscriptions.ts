@@ -4,6 +4,7 @@ import { requireAuth, requireFullAccount, AuthedRequest } from "../middleware/au
 import { prisma } from "../db/prisma";
 import { validateAppleReceipt, validateGooglePurchase } from "../services/subscriptions/validators";
 import { env } from "../config/env";
+import { isStripeConfigured } from "../services/billing/stripeClient";
 
 export const subscriptionsRouter = Router();
 
@@ -12,13 +13,15 @@ subscriptionsRouter.get("/status", requireAuth, async (req: AuthedRequest, res) 
   const active = sub?.tier === "PLUS" && (!sub.expiresAt || sub.expiresAt > new Date());
   res.json({
     tier: active ? "PLUS" : "FREE",
+    platform: sub?.platform ?? null,
     expiresAt: sub?.expiresAt ?? null,
     autoRenew: sub?.autoRenew ?? false,
     products: {
       monthly: env.grandmaPlusMonthlyProductId,
       annual: env.grandmaPlusAnnualProductId,
-      priceMonthlyUsd: 7.99,
+      priceMonthlyUsd: env.grandmaPlusPriceUsd,
     },
+    stripeConfigured: isStripeConfigured(),
   });
 });
 

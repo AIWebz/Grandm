@@ -1,5 +1,6 @@
 import { api } from "../api/client";
 import { useApiData } from "./useApiData";
+import { useApiGate } from "./useApiGate";
 
 export interface MemoryFact {
   id: string;
@@ -14,9 +15,13 @@ export function useMemory() {
     "memory"
   );
 
+  const gate = useApiGate();
+
   const setOptIn = async (enabled: boolean) => {
-    await api.post("/memory/opt-in", { enabled });
-    await state.refresh();
+    const result = await gate(() => api.post("/memory/opt-in", { enabled }), {
+      plus: "Long-term memory - remembering favorites, dietary needs, and routines - is a Grandma+ feature.",
+    });
+    if (result) await state.refresh();
   };
 
   const updateFact = async (id: string, fact: string) => {

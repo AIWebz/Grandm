@@ -22,6 +22,7 @@ export const env = {
   ollamaVisionModel: process.env.OLLAMA_VISION_MODEL ?? "llava",
 
   freeDailyChatCap: Number(process.env.FREE_DAILY_CHAT_CAP ?? 15),
+  freeDailyRecipeCap: Number(process.env.FREE_DAILY_RECIPE_CAP ?? 3),
 
   appleClientId: process.env.APPLE_CLIENT_ID ?? "",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -35,6 +36,14 @@ export const env = {
   googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
   grandmaPlusMonthlyProductId: process.env.GRANDMA_PLUS_MONTHLY_PRODUCT_ID ?? "grandma_plus_monthly",
   grandmaPlusAnnualProductId: process.env.GRANDMA_PLUS_ANNUAL_PRODUCT_ID ?? "grandma_plus_annual",
+  grandmaPlusPriceUsd: Number(process.env.GRANDMA_PLUS_PRICE_USD ?? 14.99),
+
+  // --- Stripe (primary billing rail - see docs/ARCHITECTURE.md) ---
+  appUrl: process.env.APP_URL ?? "http://localhost:4000",
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
+  stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
+  stripePriceIdMonthly: process.env.STRIPE_PRICE_ID_MONTHLY ?? "",
 
   adsProvider: process.env.ADS_PROVIDER ?? "admob",
   admobAppIdIos: process.env.ADMOB_APP_ID_IOS ?? "",

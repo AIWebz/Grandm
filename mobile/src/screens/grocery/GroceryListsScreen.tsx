@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { TasksStackParamList } from "../../navigation/types";
 import { useGroceryLists } from "../../hooks/useGroceryLists";
+import { useSubscriptionStatus } from "../../hooks/useSubscriptionStatus";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -14,6 +15,7 @@ type Props = NativeStackScreenProps<TasksStackParamList, "GroceryLists">;
 
 export function GroceryListsScreen({ navigation }: Props) {
   const { groceryLists, loading, createList, deleteList, mergeLists } = useGroceryLists();
+  const { tier } = useSubscriptionStatus();
   const [newTitle, setNewTitle] = useState("");
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -22,9 +24,11 @@ export function GroceryListsScreen({ navigation }: Props) {
 
   const doMerge = async () => {
     if (selectedIds.length < 2) return;
-    await mergeLists(selectedIds);
-    setSelecting(false);
-    setSelectedIds([]);
+    const merged = await mergeLists(selectedIds);
+    if (merged) {
+      setSelecting(false);
+      setSelectedIds([]);
+    }
   };
 
   return (
@@ -41,6 +45,10 @@ export function GroceryListsScreen({ navigation }: Props) {
         />
       </View>
 
+      {tier !== "PLUS" && (
+        <Text style={styles.upsellNote}>Grocery list generation is a Grandma+ feature - $14.99/mo.</Text>
+      )}
+
       <View style={styles.addRow}>
         <TextInput
           style={styles.addInput}
@@ -54,8 +62,8 @@ export function GroceryListsScreen({ navigation }: Props) {
           label="Create"
           onPress={async () => {
             if (!newTitle.trim()) return;
-            await createList(newTitle.trim());
-            setNewTitle("");
+            const created = await createList(newTitle.trim());
+            if (created) setNewTitle("");
           }}
         />
       </View>
@@ -67,7 +75,17 @@ export function GroceryListsScreen({ navigation }: Props) {
         keyExtractor={(l) => l.id}
         contentContainerStyle={{ padding: spacing.md }}
         ListHeaderComponent={<AdSlot screen="grocery_list" />}
-        ListEmptyComponent={!loading ? <EmptyState message="No grocery lists yet - make one from a recipe or ask Grandma." /> : null}
+        ListEmptyComponent={
+          !loading ? (
+            <EmptyState
+              message={
+                tier === "PLUS"
+                  ? "No grocery lists yet - make one from a recipe or ask Grandma."
+                  : "Grocery lists are part of Grandma+ - upgrade to generate one from any recipe or right from chat."
+              }
+            />
+          ) : null
+        }
         renderItem={({ item }) => {
           const checkedCount = item.items.filter((i) => i.checked).length;
           const selected = selectedIds.includes(item.id);
@@ -94,6 +112,7 @@ export function GroceryListsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.cream },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, paddingBottom: 0 },
+  upsellNote: { color: colors.coralDark, fontSize: 12, textAlign: "center", marginTop: spacing.xs },
   addRow: { flexDirection: "row", padding: spacing.md, alignItems: "center" },
   addInput: { flex: 1, minHeight: MIN_TOUCH_TARGET, backgroundColor: colors.card, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, marginRight: spacing.sm, color: colors.brownText },
   listCard: { marginBottom: spacing.sm },

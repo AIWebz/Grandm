@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireFullAccount, AuthedRequest } from "../middleware/auth";
+import { requireAuth, requireFullAccount, requirePlus, AuthedRequest } from "../middleware/auth";
 import { prisma } from "../db/prisma";
 import { generateRecipe } from "../services/ai/recipeService";
 import { isAiConfigured } from "../services/ai/provider";
+import { getRecipeUsageStatus, incrementRecipeUsage } from "../utils/usageCap";
 
 export const recipesRouter = Router();
 
@@ -42,13 +43,21 @@ recipesRouter.get("/saved", requireAuth, async (req: AuthedRequest, res) => {
   res.json({ recipes: recipes.map(serialize) });
 });
 
+recipesRouter.get("/usage", requireAuth, async (req: AuthedRequest, res) => {
+  res.json(await getRecipeUsageStatus(req.userId!));
+});
+
 recipesRouter.get("/:id", requireAuth, async (req: AuthedRequest, res) => {
   const recipe = await prisma.recipe.findUnique({ where: { id: req.params.id } });
   if (!recipe) return res.status(404).json({ error: "Not found" });
   res.json({ recipe: serialize(recipe) });
 });
 
-/** Ask Grandma to generate a recipe - used by empty-category states and direct requests. */
+/**
+ * Ask Grandma to generate a recipe - used by empty-category states and
+ * direct requests. Free tier gets a small daily allowance of these on top
+ * of the "traditional" catalog; Grandma+ is unlimited.
+ */
 recipesRouter.post("/generate", requireAuth, async (req: AuthedRequest, res) => {
   const schema = z.object({ prompt: z.string().min(1), category: z.string().optional(), dietary: z.array(z.string()).optional() });
   const parse = schema.safeParse(req.body);
@@ -56,6 +65,10 @@ recipesRouter.post("/generate", requireAuth, async (req: AuthedRequest, res) => 
 
   if (!isAiConfigured()) {
     return res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having a little trouble hearing you right now - try again in a moment?" });
+  }
+  const usage = await getRecipeUsageStatus(req.userId!);
+  if (usage.atCap) {
+    return res.status(402).json({ error: "RECIPE_CAP_REACHED", usage, message: "You've used today's free recipes - Grandma+ gives you unlimited." });
   }
 
   try {
@@ -76,6 +89,7 @@ recipesRouter.post("/generate", requireAuth, async (req: AuthedRequest, res) => 
         isGenerated: true,
       },
     });
+    await incrementRecipeUsage(req.userId!);
     res.status(201).json({ recipe: serialize(recipe) });
   } catch {
     res.status(503).json({ error: "AI_UNAVAILABLE", message: "I'm having a little trouble hearing you right now - try again in a moment?" });
@@ -113,8 +127,8 @@ recipesRouter.post("/:id/unsave", requireAuth, async (req: AuthedRequest, res) =
   res.json({ recipe: serialize(updated) });
 });
 
-/** Push all ingredients from this recipe into a new (or existing) grocery list. */
-recipesRouter.post("/:id/grocery-list", requireAuth, async (req: AuthedRequest, res) => {
+/** Push all ingredients from this recipe into a new grocery list - grocery list generation is a Grandma+ feature. */
+recipesRouter.post("/:id/grocery-list", requireAuth, requireFullAccount, requirePlus, async (req: AuthedRequest, res) => {
   const recipe = await prisma.recipe.findUnique({ where: { id: req.params.id } });
   if (!recipe) return res.status(404).json({ error: "Not found" });
   const ingredients = JSON.parse(recipe.ingredients) as { name: string; quantity?: string; unit?: string }[];

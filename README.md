@@ -41,6 +41,18 @@ Prefer a hosted model (higher quality, costs money)? Set
 `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `server/.env` instead —
 see `docs/ARCHITECTURE.md` §4 for the full tradeoff.
 
+### Payments (Stripe, Grandma+ at $14.99/mo)
+```
+cd server
+# In .env: STRIPE_SECRET_KEY (test key from dashboard.stripe.com/apikeys)
+npm run stripe:setup    # creates the Grandma+ product/price, prints STRIPE_PRICE_ID_MONTHLY
+stripe listen --forward-to localhost:4000/billing/webhook   # prints STRIPE_WEBHOOK_SECRET for local dev
+```
+Without a Stripe key, the app still runs fully — Grandma+ purchase buttons
+just return a clear "not configured" instead of a broken flow. See
+`docs/ARCHITECTURE.md` §7 for the full Free vs. Grandma+ feature matrix and
+an important compliance note about Stripe vs. native app-store billing.
+
 ### Backend
 ```
 cd server

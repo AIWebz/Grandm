@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
+    "stripe:setup": "tsx scripts/setupStripeProduct.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "jwks-rsa": "^3.1.0",
     "multer": "^2.0.0",
     "node-fetch": "^3.3.2",
+    "stripe": "^22.6.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
