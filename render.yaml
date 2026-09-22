@@ -1,0 +1,58 @@
+# One-click backend deploy on Render (https://render.com), a host with a
+# genuinely free web-service tier (no credit card). This is the one piece
+# GitHub itself cannot run (see docs/ARCHITECTURE.md §9/§10) - GitHub Pages
+# only serves the static website, so the chat/tasks/recipes API needs a
+# real always-on server somewhere, and this Blueprint is that server.
+#
+# One-time setup (see GETTING_STARTED.md for the full walkthrough):
+#   1. https://dashboard.render.com -> New -> Blueprint -> pick this repo.
+#   2. Render finds this file and prompts for GROQ_API_KEY (get one free,
+#      no card, at https://console.groq.com/keys) - paste it in.
+#   3. Click Apply. Render provisions a free Postgres database and the
+#      server together, and redeploys automatically on every push to main
+#      from then on - nothing to run locally, ever.
+#   4. Once deployed, copy the URL Render assigns (shown in its dashboard,
+#      looks like https://grandma-ai-server-xxxx.onrender.com) into this
+#      service's APP_URL env var (Render dashboard -> Environment), and
+#      into the EXPO_PUBLIC_API_URL repo variable that deploy-web.yml uses
+#      (GitHub -> Settings -> Secrets and variables -> Actions -> Variables).
+#
+# Free-tier reality, stated plainly: Render's free web service spins down
+# after 15 minutes idle and takes ~30-60s to wake back up on the next
+# request (harmless for a personal project, noticeable as a slow first
+# load). Optional extras (Stripe, AdMob, push) aren't declared below - add
+# them in the Render dashboard's Environment tab whenever you're ready;
+# until then the app runs with the same graceful "not configured" fallback
+# it already uses everywhere else (see docs/ARCHITECTURE.md).
+databases:
+  - name: grandma-ai-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: grandma-ai-server
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: grandma-ai-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 4000
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_VISION_MODEL
+        value: meta-llama/llama-4-scout-17b-16e-instruct
+      - key: APP_URL
+        value: http://localhost:4000

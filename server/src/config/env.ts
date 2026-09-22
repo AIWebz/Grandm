@@ -8,7 +8,7 @@ function required(name: string, fallback?: string): string {
 
 export const env = {
   port: Number(process.env.PORT ?? 4000),
-  databaseUrl: required("DATABASE_URL", "file:./dev.db"),
+  databaseUrl: required("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/grandma"),
   jwtSecret: required("JWT_SECRET", "dev-secret-change-me"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
 
@@ -20,6 +20,10 @@ export const env = {
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL ?? "llama3.1",
   ollamaVisionModel: process.env.OLLAMA_VISION_MODEL ?? "llava",
+
+  groqApiKey: process.env.GROQ_API_KEY ?? "",
+  groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  groqVisionModel: process.env.GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
 
   freeDailyChatCap: Number(process.env.FREE_DAILY_CHAT_CAP ?? 15),
   freeDailyRecipeCap: Number(process.env.FREE_DAILY_RECIPE_CAP ?? 3),

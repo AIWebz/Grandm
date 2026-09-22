@@ -2,9 +2,12 @@ import { env } from "../../config/env";
 import { AiProvider } from "./types";
 import { anthropicProvider } from "./providers/anthropicProvider";
 import { ollamaProvider } from "./providers/ollamaProvider";
+import { groqProvider } from "./providers/groqProvider";
 
 export function getAiProvider(): AiProvider {
-  return env.aiProvider === "ollama" ? ollamaProvider : anthropicProvider;
+  if (env.aiProvider === "ollama") return ollamaProvider;
+  if (env.aiProvider === "groq") return groqProvider;
+  return anthropicProvider;
 }
 
 /**
@@ -15,5 +18,6 @@ export function getAiProvider(): AiProvider {
  */
 export function isAiConfigured(): boolean {
   if (env.aiProvider === "ollama") return true;
+  if (env.aiProvider === "groq") return Boolean(env.groqApiKey);
   return Boolean(env.anthropicApiKey);
 }

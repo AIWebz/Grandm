@@ -3,13 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite has no native enum type, so enum-like fields are plain strings
-// validated at the API boundary with zod (see src/routes/*.ts) and typed
-// with string-literal unions in src/types/enums.ts.
+// Enum-like fields are plain strings (not Postgres native enums) so they
+// stay a single source of truth validated at the API boundary with zod
+// (see src/routes/*.ts) and typed with string-literal unions in
+// src/types/enums.ts, rather than duplicated into a second schema-level
+// enum that would need its own migration every time a value changes.
 //
 // PersonalityStyle: WARM | FUNNY | CALM | PRACTICAL
 // Interest: COOKING | CHORES | PLANNING | GROCERIES | REMINDERS | ENCOURAGEMENT | EVERYTHING

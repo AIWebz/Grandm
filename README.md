@@ -20,8 +20,11 @@ This repo is a monorepo:
   Pages deploy that publishes the app as a real website on every push to
   `main`, so the one-time setup scripts (and the site itself) run from
   GitHub instead of your machine.
-- `docker-compose.yml` + `server/Dockerfile` — runs Ollama and the server
-  together with one command, no local Node/Ollama install required.
+- `docker-compose.yml` + `server/Dockerfile` — runs Postgres, Ollama, and
+  the server together with one command, no local install required.
+- `render.yaml` — a Render Blueprint that deploys the backend (server +
+  a free Postgres database) to a real, public, always-on URL with one
+  click and zero local setup — see "Deploy the backend" below.
 
 See `docs/ARCHITECTURE.md` for the auth-pattern decision, the tool-calling
 design, and exactly which third-party integrations are live vs. stubbed
@@ -64,20 +67,43 @@ buttons just return a clear "not configured" instead of a broken flow. See
 `docs/ARCHITECTURE.md` §7 for the full Free vs. Grandma+ feature matrix and
 an important compliance note about Stripe vs. native app-store billing.
 
-## Host the app as a website on GitHub Pages
+## Host the whole thing on GitHub — the website *and* the backend
 
-`.github/workflows/deploy-web.yml` exports the mobile app for web
-(`react-native-web` via Metro) and publishes it to GitHub Pages on every
-push to `main` — no separate web app, it's the same screens/nav/chat
-running in a browser. One-time setup:
+GitHub Pages can only serve static files — it has no way to run the
+Node/Postgres backend that owns accounts, chat, and everyone's data (see
+`docs/ARCHITECTURE.md` §10 for exactly why). So "the app, live, with no
+server for you to run" takes two pieces, both effectively free and both
+auto-deploying from this repo from then on. The backend is the one
+unavoidable manual step — it needs its own always-on host somewhere, and
+only you can authorize that host to access your GitHub account.
+
+**1. Deploy the backend on Render (one click, no credit card):**
+1. Grab a free API key at [console.groq.com/keys](https://console.groq.com/keys)
+   (this is the AI engine — Groq's free tier is what makes an always-on
+   hosted backend possible without running Ollama's heavier local model).
+2. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**
+   → pick this repo. Render reads `render.yaml`, provisions a free
+   Postgres database and the server together, and asks for one value:
+   paste in the Groq key from step 1. Click **Apply**.
+3. Once it's deployed, copy the URL Render assigns (shown in its
+   dashboard, looks like `https://grandma-ai-server-xxxx.onrender.com`).
+   From then on, every push to `main` redeploys the backend automatically
+   — nothing left to run locally, ever.
+
+Free tier, stated plainly: it spins down after 15 minutes idle and takes
+30-60s to wake back up on the next request — fine for a personal project,
+noticeable as one slow first load. Stripe, AdMob, and push aren't part of
+the one-click setup; add them anytime in Render's dashboard → Environment
+tab (same graceful "not configured" fallback the app already uses
+everywhere — see `docs/ARCHITECTURE.md`).
+
+**2. Point the website at it:**
 1. **Settings → Pages → Source: "GitHub Actions."**
-2. Optional: **Settings → Secrets and variables → Actions → Variables →**
-   add `EXPO_PUBLIC_API_URL` pointing at your real, publicly deployed
-   backend (see "Deploy the backend somewhere real" below) — without it,
-   the site loads but every screen that talks to the server won't have
-   anyone to talk to.
-3. Push to `main`. The site publishes to
-   `https://<owner>.github.io/<repo>/`.
+2. **Settings → Secrets and variables → Actions → Variables →** add
+   `EXPO_PUBLIC_API_URL` set to the Render URL from step 1.3.
+3. Push to `main` (or re-run `.github/workflows/deploy-web.yml` manually).
+   The site publishes to `https://<owner>.github.io/<repo>/`, now actually
+   talking to a real backend.
 
 Ads, native in-app-purchase, and voice input have no browser equivalent
 and are intentionally unavailable on the web build (Stripe Checkout still
@@ -87,20 +113,27 @@ bundler failed before three `.web.ts` files fixed it.
 
 ## Quick start (running things locally instead)
 
-### AI engine (Ollama, no API key)
+Needs a local Postgres instance (`docker compose up postgres` from this
+repo starts just that piece, or install Postgres yourself and point
+`DATABASE_URL` at it — see `server/.env.example`).
+
+### AI engine (Ollama, Groq, or Anthropic)
 The app defaults to a local model via [Ollama](https://ollama.com) — no
-signup, no API key, nothing sent to a third party. One command handles
-installing Ollama (if needed), starting it, and pulling the tool-calling
-and vision models the app uses:
+signup, no API key, nothing sent to a third party, but it needs a machine
+with several GB of RAM. One command handles installing Ollama (if
+needed), starting it, and pulling the tool-calling and vision models the
+app uses:
 ```
 cd server
 npm run ollama:setup
 ```
 (Skip this if you're using `docker compose up` above — it already handles
-Ollama for you.) Prefer a hosted model (higher quality, costs money, no
-local hardware needed)? Set `AI_PROVIDER=anthropic` and
-`ANTHROPIC_API_KEY` in `server/.env` instead — see `docs/ARCHITECTURE.md`
-§4 for the full tradeoff.
+Ollama for you.) On a lighter machine, or for the hosted Render deploy
+above, set `AI_PROVIDER=groq` and `GROQ_API_KEY` instead (free tier, no
+local compute — see "Deploy the backend" above). Prefer a paid hosted
+model (higher quality)? Set `AI_PROVIDER=anthropic` and
+`ANTHROPIC_API_KEY`. See `docs/ARCHITECTURE.md` §4 for the full tradeoff
+between all three.
 
 ### Backend
 ```

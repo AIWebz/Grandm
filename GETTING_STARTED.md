@@ -12,23 +12,23 @@ and the full Free vs. Grandma+ feature matrix.
 ## 0. Prerequisites on your machine
 
 - [Node.js](https://nodejs.org) 20+ and npm
-- [Ollama](https://ollama.com) (for the free, local AI engine) — or an
-  Anthropic API key if you'd rather use hosted Claude
-- An [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/yr) — required to submit to the App Store
-- An [Expo](https://expo.dev) account (free) — used to run EAS Build, since this app uses native modules (IAP, AdMob, speech recognition) that Expo Go can't run
+- A Postgres database — [Ollama](https://ollama.com) (for the free, local AI engine, needs a machine with a few GB of RAM) *or* a free [Groq](https://console.groq.com) API key (for a lightweight hosted deploy) *or* an Anthropic API key
+- An [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/yr) — only needed for the App Store path (step 5); skip it entirely if you're going with the website (step 4)
+- An [Expo](https://expo.dev) account (free) — only needed for EAS Build (step 5), since native modules (IAP, AdMob, speech recognition) need a real native build, not Expo Go
 - Optional but recommended before charging real customers: a [Stripe](https://dashboard.stripe.com) account, and an [AdMob](https://admob.google.com) account for real ad revenue
 
 ## 1. Get the backend running
 
-**Option A - Docker (recommended, no local Node/Ollama install):**
+**Option A - Docker (recommended, no local Node/Ollama/Postgres install):**
 ```bash
 cp server/.env.example server/.env
 docker compose up --build
 ```
-`docker-compose.yml` runs Ollama and the server together: it pulls
-`llama3.1` (chat + tool-calling) and `llava` (Family Cookbook handwriting
-OCR) into a persistent volume on first run, then starts the server wired
-up to talk to it over the Docker network. Nothing else to install.
+`docker-compose.yml` runs Postgres, Ollama, and the server together: it
+pulls `llama3.1` (chat + tool-calling) and `llava` (Family Cookbook
+handwriting OCR) into a persistent volume on first run, then starts the
+server wired up to talk to both over the Docker network. Nothing else to
+install.
 
 **Option B - locally with Node:**
 ```bash
@@ -76,18 +76,35 @@ create a webhook endpoint in the Stripe Dashboard pointed at
 secret instead of the `stripe listen` one. Switch `STRIPE_SECRET_KEY` to
 your live key (`sk_live_...`) only once you're ready for real charges.
 
-### Deploy the backend somewhere real
-The app needs `EXPO_PUBLIC_API_URL` (mobile) pointing at a real, public
-HTTPS server before an App Store build — `localhost` only works on your
-own dev machine. `.github/workflows/docker-publish.yml` already builds
-`server/Dockerfile` and pushes it to `ghcr.io/<owner>/<repo>/server` on
-every push to `main` — pull that image directly on any host that can run
-Docker (a VPS, Railway, Render, Fly.io, etc.) instead of cloning the repo
-there. Point `DATABASE_URL` at a real Postgres instance for anything
-beyond a single-container demo (the Prisma schema is provider-agnostic
-enough for either — see `docs/ARCHITECTURE.md`), and run Ollama as its own
-long-lived service (or use `AI_PROVIDER=anthropic`) rather than bundling a
-multi-GB model download into your deploy pipeline.
+### Deploy the backend somewhere real (needed before an App Store build *or* the website)
+Both the mobile app and the website need `EXPO_PUBLIC_API_URL` pointing at
+a real, public HTTPS server — `localhost` only works on your own dev
+machine.
+
+**Recommended: Render, via `render.yaml`, free, no credit card.**
+1. Grab a free key at [console.groq.com/keys](https://console.groq.com/keys)
+   — Groq is a hosted, free-tier AI API, the right fit here since Render's
+   free tier doesn't have the RAM to run Ollama itself.
+2. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint**
+   → pick this repo → paste the Groq key when prompted → **Apply**. Render
+   reads `render.yaml` and provisions a free Postgres database plus the
+   server together.
+3. Copy the URL Render assigns you (its dashboard shows it, something like
+   `https://grandma-ai-server-xxxx.onrender.com`) — that's your
+   `EXPO_PUBLIC_API_URL` for both the mobile app and the website. Every
+   push to `main` redeploys it automatically from here on.
+
+Free tier note: it spins down after 15 minutes idle, ~30-60s cold start on
+the next request — fine for personal use, worth knowing about.
+
+**Alternative: pull the prebuilt Docker image yourself.**
+`.github/workflows/docker-publish.yml` already builds `server/Dockerfile`
+and pushes it to `ghcr.io/<owner>/<repo>/server` on every push to `main` —
+pull that image on any host that runs Docker (a VPS, Fly.io, etc.) instead
+of using the Render blueprint. Point `DATABASE_URL` at your own Postgres
+instance, and run Ollama as its own long-lived service (or set
+`AI_PROVIDER=groq`/`anthropic`) rather than bundling a multi-GB model
+download into your deploy pipeline.
 
 ## 2. Get the mobile app running locally
 
@@ -122,11 +139,10 @@ The same app also runs as a real website, no App Store review, no EAS
 build, no $99/yr membership — `.github/workflows/deploy-web.yml` handles
 it:
 1. **Settings → Pages → Source: "GitHub Actions"** (one-time repo setting).
-2. Optional but needed for the site to actually work for visitors:
-   **Settings → Secrets and variables → Actions → Variables →** add
-   `EXPO_PUBLIC_API_URL` pointing at your real, public backend (step 1's
-   Docker/Ollama deploy, reachable over HTTPS — `localhost` only works on
-   your own machine).
+2. **Settings → Secrets and variables → Actions → Variables →** add
+   `EXPO_PUBLIC_API_URL` set to your backend's URL from "Deploy the
+   backend somewhere real" in step 1 above (skip this and the site loads
+   but has no server to actually talk to).
 3. Push to `main`. The workflow runs `npx expo export --platform web` and
    publishes it to `https://<owner>.github.io/<repo>/`.
 

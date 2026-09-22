@@ -75,14 +75,14 @@ interface, so swapping is a config change, not a rewrite:
 
 | Concern | Env var | Interface | Included implementation |
 |---|---|---|---|
-| LLM | `AI_PROVIDER` | `services/ai/provider.ts` (`AiProvider` in `services/ai/types.ts`) | `ollama` **(default)** — local, no API key/billing; or `anthropic` — hosted, needs `ANTHROPIC_API_KEY` |
-| Database | `DATABASE_URL` | Prisma | SQLite for local dev, Postgres in prod (same schema) |
+| LLM | `AI_PROVIDER` | `services/ai/provider.ts` (`AiProvider` in `services/ai/types.ts`) | `ollama` **(default)** — local, no API key/billing, needs a few GB of RAM; `groq` — hosted, free tier, needs `GROQ_API_KEY` (what the Render deploy uses); or `anthropic` — hosted, paid, needs `ANTHROPIC_API_KEY` |
+| Database | `DATABASE_URL` | Prisma | Postgres everywhere (local dev via `docker compose up postgres`, prod via Render's free Postgres or your own) |
 | Auth | `AUTH_PROVIDER` | `services/auth/socialProviders.ts` | email/password (live); Apple/Google (adapter present, needs real client IDs — see below) |
 | Push | `PUSH_PROVIDER` | `services/notifications/pushService.ts` | `expo` (live, using Expo's push service) or `fcm`/`apns` adapters (stubbed — need real project credentials) |
 | Subscriptions | `IAP_PROVIDER` | `services/subscriptions/*` | server-side validation call structure is real; needs a real App Store Connect / Play Console app+key to validate live receipts |
 | Ads | `ADS_PROVIDER` | `services/ads/adsConfig.ts` + `mobile/src/components/AdSlot.tsx` | config/placement rules are real and enforced; needs a real ad network SDK + app id to serve live ads |
 
-### AI provider: Ollama (default) vs. Anthropic
+### AI provider: Ollama (default) vs. Groq vs. Anthropic
 
 The app ships defaulting to `AI_PROVIDER=ollama` — a **local model with no
 API key, no billing account, and no external network call** — so the chat
@@ -120,11 +120,28 @@ Set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to switch to the
 hosted backend instead — noticeably higher quality and more reliable tool
 use, at the cost of needing a paid API key.
 
+**Third option, `AI_PROVIDER=groq` + `GROQ_API_KEY`** (`services/ai/providers/groqProvider.ts`):
+a hosted, free-tier inference API (console.groq.com, OpenAI-compatible),
+implementing the exact same `AiProvider` interface as the other two. This
+exists because Ollama's several-GB RAM requirement doesn't fit a free-tier
+host's small instance (e.g. Render's free web service), and Anthropic
+costs money per request — Groq's free tier is the option that's both
+hostable on a free machine and doesn't require billing. `render.yaml`
+(the one-click backend deploy — see §10) defaults to it for exactly this
+reason. Streaming tool calls arrive as fragments keyed by index and are
+reassembled client-side (OpenAI-compatible streaming's one real wrinkle
+versus Anthropic's/Ollama's simpler per-chunk shape); structured output
+(recipe generation, handwriting OCR) uses a forced single tool call the
+same way `anthropicProvider` does, rather than `response_format:
+json_object`, since forcing a specific tool's schema is more reliable than
+asking for "some valid JSON" and hoping it matches.
+
 ### What's genuinely live in this build
-- Real Postgres/SQLite-backed persistence for every feature (tasks,
-  recipes, grocery lists, Family Cookbook, memory, schedule, chat history).
+- Real Postgres-backed persistence for every feature (tasks, recipes,
+  grocery lists, Family Cookbook, memory, schedule, chat history).
 - A real AI backend with tool-calling, streaming, and vision (used for
-  handwritten recipe OCR) — Ollama by default, Anthropic as a drop-in swap.
+  handwritten recipe OCR) — Ollama by default, Groq or Anthropic as a
+  drop-in swap.
 - Real JWT auth, password hashing (bcrypt), guest→full-account upgrade.
 - Real push notification *scheduling and preference logic*, dispatched
   through Expo's push service (works today with a real Expo project id).
@@ -386,13 +403,58 @@ from a repository **variable** (Settings → Secrets and variables → Actions
 → Variables), not a secret, since it's a public URL baked into a public
 static bundle — never put a real secret there. GitHub Pages only serves
 static files: the site is genuinely useless without a real, publicly
-reachable backend behind that URL (§ "Deploy the backend somewhere real" in
-`GETTING_STARTED.md` — the existing `docker-publish.yml` image is exactly
-that backend). Enabling Pages itself is a one-time repo setting this
-workflow can't flip on its own: **Settings → Pages → Source: "GitHub
-Actions"**.
+reachable backend behind that URL — see §10 for how that backend gets
+hosted. Enabling Pages itself is a one-time repo setting this workflow
+can't flip on its own: **Settings → Pages → Source: "GitHub Actions"**.
 
-## 10. Data model
+## 10. Hosting the backend: Render, via `render.yaml`, free and auto-deploying
+
+**Decision: Render's free web-service tier, provisioned by `render.yaml`
+(a Render "Blueprint")**, after being asked directly to keep the whole app
+GitHub-hosted with no server for the user to run themselves. The honest
+constraint this runs into: GitHub has no product that runs a persistent,
+publicly-reachable server — Pages serves static files only, and Actions
+runners are short-lived and not publicly addressable. Something has to be
+a real always-on computer to own accounts, chat, and everyone's data; that
+"something" just doesn't have to be GitHub, and it doesn't have to be
+something the user manages. `render.yaml` is the bridge: point Render's
+dashboard at this repo once, and from then on every push to `main`
+redeploys the backend the same way `deploy-web.yml` redeploys the website
+— no local Node, no server to babysit.
+
+**Why Render, and why Groq instead of Ollama for this specific deploy:**
+Render's free web-service tier requires no credit card, which Fly.io (the
+other credible free-tier Docker host) stopped offering to new signups.
+Render's free tier is resource-constrained (well under the several GB of
+RAM Ollama's model needs), so `render.yaml` sets `AI_PROVIDER=groq` — see
+§4's third option — rather than trying to run Ollama on hardware too small
+for it. The one manual, unavoidable step is a free Groq API key
+(console.groq.com, no card) pasted in during the Blueprint's setup wizard;
+everything else (`JWT_SECRET`, `DATABASE_URL`) is generated or wired
+automatically by Render from `render.yaml`.
+
+**Why Postgres, not SQLite, for this deploy:** Render's
+free web service has no persistent disk — any file written inside the
+container, including a SQLite database, is gone on the next deploy or
+restart. `render.yaml` provisions a free Render Postgres database
+alongside the server and wires `DATABASE_URL` to it automatically
+(`fromDatabase`), which is why `server/prisma/schema.prisma`'s datasource
+changed from `sqlite` to `postgresql` as part of this work (verified end-
+to-end: a real local Postgres 16 instance, a fresh `prisma migrate dev`
+against it, then the built server actually serving `POST /auth/guest` and
+persisting the row — not just a clean TypeScript build). `docker-compose.yml`
+gained its own `postgres` service so local Docker dev matches this
+production shape instead of diverging on database engine.
+
+**Free-tier reality, stated plainly:** Render's free web service spins
+down after 15 minutes with no traffic and takes roughly 30-60 seconds to
+wake back up on the next request — the tradeoff for zero cost and zero
+maintenance, worth knowing about rather than being surprised by. Optional
+integrations (Stripe, AdMob, push) aren't part of `render.yaml`'s initial
+prompts; add them anytime via Render's dashboard → Environment tab, same
+"not configured" graceful fallback described throughout this document.
+
+## 11. Data model
 
 See `server/prisma/schema.prisma`. One `User` row per person (guest or
 full), with `Task`, `Reminder`, `Recipe`, `FamilyCookbookRecipe`,

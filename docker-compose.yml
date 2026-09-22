@@ -1,9 +1,11 @@
-# Runs the whole backend - Ollama (the local AI engine) plus the Grandma
-# AI server - as one command, replacing the old "npm run ollama:setup"
-# local script. Requires server/.env to exist first (cp server/.env.example
-# server/.env); everything in it loads into the server container, except
-# AI_PROVIDER/OLLAMA_BASE_URL below, which are pinned to talk to the
-# `ollama` service over the Docker network rather than localhost.
+# Runs the whole backend - Postgres, Ollama (the local AI engine), and the
+# Grandma AI server - as one command, replacing the old "npm run
+# ollama:setup" local script. Requires server/.env to exist first (cp
+# server/.env.example server/.env); everything in it loads into the server
+# container, except AI_PROVIDER/OLLAMA_BASE_URL/DATABASE_URL below, which are
+# pinned to talk to the `ollama`/`postgres` services over the Docker network
+# rather than localhost/a local file (this mirrors the production deploy on
+# Render - see render.yaml - which also runs the server against Postgres).
 #
 # Usage:
 #   cp server/.env.example server/.env   # fill in real secrets as needed
@@ -12,6 +14,21 @@
 # First run downloads the two Ollama models (a few GB) via the one-shot
 # `ollama-pull` service, then the server starts once they're ready.
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: grandma
+      POSTGRES_PASSWORD: grandma
+      POSTGRES_DB: grandma
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grandma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   ollama:
     image: ollama/ollama:latest
     volumes:
@@ -45,19 +62,20 @@ services:
     environment:
       AI_PROVIDER: ollama
       OLLAMA_BASE_URL: http://ollama:11434
-      DATABASE_URL: file:/data/dev.db
+      DATABASE_URL: postgresql://grandma:grandma@postgres:5432/grandma
       PORT: 4000
     ports:
       - "4000:4000"
     volumes:
-      - server_data:/data
       - server_uploads:/app/uploads
     depends_on:
+      postgres:
+        condition: service_healthy
       ollama-pull:
         condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   ollama_data:
-  server_data:
   server_uploads:
